@@ -98,3 +98,13 @@ def test_build_merges_review_and_flags_stale(repo):
     regs = load_json(repo / "build/regulations.json")
     assert regs["health_claims"][0]["needs_recheck"] is True   # 2026-10-07 查核，已超過 90 天
     assert regs["laws"][0]["needs_recheck"] is True            # 從未查核
+
+
+def test_build_exports_rules_for_live_search(repo):
+    """網站即時檢索需要的權重、菌名對照、擷取指示須隨資料檔輸出。"""
+    build.run(today=date(2026, 10, 7))
+    regs = load_json(repo / "build/regulations.json")
+    assert regs["scoring"]["level_points"]["A"] == 40
+    assert any(a["old"] == "Lactobacillus plantarum" for a in regs["taxonomy_aliases"])
+    prompts = load_json(repo / "build/prompts.json")
+    assert "findings" in prompts["glycemic"]

@@ -94,6 +94,11 @@ function renderResults(el, d) {
   const rows = filterCombos(d, state);
   lastResults = rows;
   const head = `<div class="notice small">${DISCLAIMER}</div>`;
+  if (!d.combos.length) {
+    el.innerHTML = `${head}<div class="empty"><p><strong>資料庫目前沒有文獻資料</strong></p><p class="muted">請先到「文獻檢索」找文獻，整理完的結果會出現在這裡。</p><a class="btn" href="#live">前往文獻檢索</a></div>`;
+    lastResults = [];
+    return;
+  }
   if (!rows.length) {
     el.innerHTML = `${head}<div class="empty"><p><strong>目前資料庫無符合組合</strong></p><p class="muted">${h(suggestions(state))}</p></div>`;
     return;

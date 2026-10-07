@@ -14,7 +14,9 @@ function extractionTag(f) {
   const e = f.extraction || {};
   return e.status === "reviewed"
     ? `<span class="tag ok">已複核（${h(e.reviewer)}，${h(String(e.reviewed_at || "").slice(0, 10))}）</span>`
-    : `<span class="tag auto">自動擷取（${h(e.model)}），未複核</span>`;
+    : e.source === "live"
+      ? `<span class="tag auto">即時檢索（${h(e.model)}），未複核</span>`
+      : `<span class="tag auto">自動擷取（${h(e.model)}），未複核</span>`;
 }
 
 function articleBlock(d, pmcid, fs) {

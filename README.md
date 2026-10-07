@@ -55,16 +55,17 @@ cp .env.example .env        # 填入 AI 服務、模型、金鑰、EXTRACTOR、N
 
 ## 網站
 
-部署後以 GitHub Pages 網址開啟，不需安裝或登入。四個分頁：
+部署後以 GitHub Pages 網址開啟，不需安裝或登入。五個分頁：
 
 | 分頁 | 功能 |
 | --- | --- |
+| 文獻檢索 | 直接從 PMC 找最新開放取用文獻，用使用者在「設定」選的 AI 逐篇整理；結果只存在該瀏覽器，標示「即時檢索、未複核」 |
 | 查詢 | 依保健功效、產品型態、原料偏好、排除原料、證據等級篩選組合；點組合看文獻、法規路徑，並可存為評估紀錄 |
 | 我的紀錄 | 評估紀錄列表、勾選 2～5 筆並列比較、匯出與匯入紀錄檔 |
 | 報告 | 填寫評估人欄位、AI 草擬（選用）、列印摘要報告成 PDF、下載正式報告 Word 草稿 |
-| 設定 | 選 AI 服務與模型、輸入金鑰（預設關閉分頁即清除）、測試連線 |
+| 設定 | 選 AI 服務與模型（填 API 模型代碼，例如 gemini-3.5-flash-lite）、輸入金鑰（預設關閉分頁即清除）、測試 AI 與 PMC 連線 |
 
-評估紀錄與金鑰只存在使用者自己的瀏覽器。網站不載入任何外部程式或字型；Word 產生套件放在 `site/vendor/`，按下載時才載入。
+評估紀錄、即時檢索結果與金鑰只存在使用者自己的瀏覽器。網站只連到 NCBI（PMC 查詢）與使用者選的 AI 服務，不載入任何外部程式或字型；Word 產生套件放在 `site/vendor/`，按下載時才載入。
 
 本機預覽（需先有 data/build 資料）：
 
@@ -74,12 +75,17 @@ mkdir -p _site/data && cp -r site/. _site/ && cp data/build/*.json _site/data/
 python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8000
 ```
 
+即時檢索與共用資料庫可以並存：共用資料庫由 `pipeline` 建置（每季、經人工複核），即時檢索結果在瀏覽器內與它合併，用同一套規則計分（`site/js/rules.js` 與 `pipeline/scoring.py` 須同步修改）。擷取指示只有一份：`pipeline/prompts/extract_glycemic.md`，build 時輸出成 `prompts.json` 供網站使用。
+
 ## 驗證狀態
 
 已驗證（2026-10-07，於開發環境執行）：
 
-- 27 個單元測試全部通過，含 SQA TC-D01～D08、D10、D13、D14 與四種 AI 轉接的請求格式。
+- 28 個單元測試全部通過，含 SQA TC-D01～D08、D10、D13、D14 與四種 AI 轉接的請求格式。
 - `validate` 與 `build` 對目前的範本資料可正常執行。
+- 文獻檢索以模擬的 PMC 與 AI 回應在 Chromium 實測：查詢、授權不明略過、AI 輸出格式錯誤時自動重試、結果寫入瀏覽器並出現在查詢排名、重複執行時略過已檢索的文獻、停止按鈕與清除結果。
+- 網站計分（rules.js）與 pipeline 計分在示範資料上 5 個組合分數完全一致。
+- Gemini（gemini-3.5-flash-lite）可由瀏覽器直接呼叫（2026-10-07 使用者實測「測試連線」成功）。
 - 網站以虛構示範資料在 Chromium 實測：查詢與四種篩選、查無結果提示、組合詳情、存紀錄、並列比較、匯出紀錄、摘要報告列印、正式報告 Word 下載（以 LibreOffice 開啟確認章節與頁首頁尾）、金鑰預設僅本次保存與清除；手機寬度版面正常；過程無 JavaScript 錯誤。
 
 尚未驗證（開發環境無法連到 NCBI 與 AI 服務）：
@@ -87,7 +93,8 @@ python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8
 - `fetch` 實際連線 NCBI E-utilities，及 efetch 回傳的 JATS 授權欄位解析。
 - `extract` 實際呼叫 Claude 與 BioC API 取得全文。
 - 三個 GitHub Actions 流程（需在倉庫上執行一次）。
-- 網站「AI 草擬」與「測試連線」實際呼叫各 AI 服務（Claude、OpenAI、Gemini、地端模型）。
+- 瀏覽器能否直接呼叫 NCBI E-utilities（跨網站請求）：部署後請先按設定頁「測試 PMC 連線」。若被擋下，文獻檢索無法使用，需改用中繼服務或回到本機擷取流程。
+- 網站「AI 草擬」、文獻檢索實際呼叫 Claude、OpenAI、地端模型（Gemini 已實測連線）。
 - 正式報告在 Microsoft Word 中的字型（標楷體）顯示；開發環境以 LibreOffice 檢查，該環境沒有標楷體。
 
 ## 待查證
@@ -95,5 +102,5 @@ python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8
 - BioC API 網址格式：`pipeline/ncbi.py` 的 `BIOC_URL`，請對照 NCBI BioC API 官方說明。
 - NCBI 請求頻率上限：程式採保守間隔（無 API key 0.4 秒、有 key 0.15 秒），請依 E-utilities 官方說明確認。
 - 文獻挑選規則：查詢結果以 PMC 編號由大到小取前 200 篇，近似「最近收錄」；查詢命中超過 10,000 篇時只會從前 10,000 筆中挑選。
-- 各 AI 服務是否允許瀏覽器直接呼叫：Claude 需加 `anthropic-dangerous-direct-browser-access` 標頭（已加）；Gemini 使用 `x-goog-api-key` 標頭，瀏覽器跨來源是否放行待實測。
+- Claude 從瀏覽器呼叫需加 `anthropic-dangerous-direct-browser-access` 標頭（已加），尚未實測。
 - Actions 版本（checkout@v4、setup-python@v5、upload-pages-artifact@v3、deploy-pages@v4、create-pull-request@v7）為撰寫時版本，可用 Dependabot 更新。

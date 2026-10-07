@@ -1,21 +1,38 @@
-// 載入 data/*.json（由 pipeline build 產生），建立索引
+// 載入 data/*.json（由 pipeline build 產生），並合併本瀏覽器「即時文獻檢索」的結果
 
-let cache = null;
+import { liveData } from "./live.js";
+import { buildCombos } from "./rules.js";
 
-async function getJson(name) {
+let shared = null;
+
+async function getJson(name, optional = false) {
   const r = await fetch(`data/${name}`, { cache: "no-cache" });
-  if (!r.ok) throw new Error(`${name} HTTP ${r.status}`);
+  if (!r.ok) { if (optional) return null; throw new Error(`${name} HTTP ${r.status}`); }
   return r.json();
 }
 
+export async function loadShared() {
+  if (shared) return shared;
+  const [meta, combos, findings, regs, prompts] = await Promise.all([
+    getJson("meta.json"), getJson("combinations.json"), getJson("findings.json"), getJson("regulations.json"),
+    getJson("prompts.json", true)]);
+  shared = { meta, combos, findings, regs, prompts: prompts || {} };
+  return shared;
+}
+
+// 每次切換分頁都重新合併，讓剛檢索完的文獻立即出現在查詢結果
 export async function loadData() {
-  if (cache) return cache;
-  const [meta, combos, findings, regs] = await Promise.all(
-    ["meta.json", "combinations.json", "findings.json", "regulations.json"].map(getJson));
+  const s = await loadShared();
+  const live = liveData();
+  const sharedIds = new Set(s.findings.map((f) => f.finding_id));
+  const liveFindings = live.findings.filter((f) => !sharedIds.has(f.finding_id));
+  const findings = [...s.findings, ...liveFindings];
+  const combos = liveFindings.length ? buildCombos(findings, s.regs, new Date().getFullYear()) : s.combos;
   const findingById = Object.fromEntries(findings.map((f) => [f.finding_id, f]));
   const comboById = Object.fromEntries(combos.map((c) => [c.combo_id, c]));
-  cache = { meta, combos, findings, findingById, comboById, regs, articles: meta.articles || {} };
-  return cache;
+  const articles = { ...live.articles, ...(s.meta.articles || {}) };
+  return { meta: s.meta, regs: s.regs, prompts: s.prompts, combos, findings, findingById, comboById, articles,
+           liveCount: Object.keys(live.articles).length };
 }
 
 export const claimInfo = (d, code) => d.regs.health_claims.find((c) => c.code === code);

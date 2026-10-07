@@ -82,6 +82,9 @@ def run(today: date | None = None) -> dict:
         return d is None or (today - d).days > STALE_DAYS
 
     regulations = {
+        # scoring 與 taxonomy_aliases 供網站「即時文獻檢索」在瀏覽器內用同一套規則計分
+        "scoring": scoring_cfg,
+        "taxonomy_aliases": (load_yaml(reg / "taxonomy_aliases.yaml", {}) or {}).get("aliases", []),
         "health_claims": claims,
         "laws": load_yaml(reg / "laws.yaml", []) or [],
         "ingredients": ingredients,
@@ -102,4 +105,8 @@ def run(today: date | None = None) -> dict:
     dump_json(out / "combinations.json", combos)
     dump_json(out / "findings.json", _jsonable(findings_out))
     dump_json(out / "regulations.json", _jsonable(regulations))
+    # 擷取指示與本機擷取工具共用同一份檔案，網站即時檢索也讀這份，避免兩邊規則不一致
+    prompts = {c["code"]: (config.PROMPTS / f"extract_{c['code']}.md").read_text(encoding="utf-8")
+               for c in claims if c.get("enabled") and (config.PROMPTS / f"extract_{c['code']}.md").exists()}
+    dump_json(out / "prompts.json", prompts)
     return {"findings": len(findings_out), "combinations": len(combos)}

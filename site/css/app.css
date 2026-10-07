@@ -127,3 +127,4 @@ details.filters > summary { display: none; }
   details.filters[open] > summary { margin-bottom: .5rem; }
 }
 .report-sheet th { white-space: nowrap; }
+[hidden] { display: none !important; }
