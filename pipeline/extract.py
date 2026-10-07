@@ -13,7 +13,8 @@ from typing import Callable
 from jsonschema import Draft202012Validator
 
 from pipeline import config
-from pipeline.fetch import CANDIDATES_HEADER
+from pipeline.fetch import CANDIDATES_HEADER, get_claim
+from pipeline.prompting import outcome_codes, render_prompt
 from pipeline.io_utils import dump_json, dump_yaml, load_yaml
 from pipeline.providers import Provider, ProviderError
 from pipeline.schema import AI_RESPONSE
@@ -31,7 +32,7 @@ def normalize_ai(data):
     return data
 
 
-def parse_ai_json(text: str) -> dict:
+def parse_ai_json(text: str, allowed_outcomes: set[str] | None = None) -> dict:
     """容許模型在 JSON 外包一層 ``` 標記；其餘多餘文字視為格式錯誤。"""
     cleaned = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", text.strip())
     data = normalize_ai(json.loads(cleaned))
@@ -40,22 +41,27 @@ def parse_ai_json(text: str) -> dict:
         e = errors[0]
         loc = "/".join(str(p) for p in e.absolute_path) or "(根)"
         raise ValueError(f"{loc}：{e.message}")
+    if allowed_outcomes is not None:
+        for i, f in enumerate(data["findings"]):
+            bad = [o for o in f.get("outcomes") or [] if o not in allowed_outcomes]
+            if bad:
+                raise ValueError(f"findings/{i}/outcomes：{', '.join(bad)} 不是此保健功效的指標代碼")
     return data
 
 
-def extract_one(provider: Provider, system: str, article_text: str) -> dict:
+def extract_one(provider: Provider, system: str, article_text: str, allowed_outcomes: set[str] | None = None) -> dict:
     """呼叫 AI；格式不合時把錯誤回傳給 AI 重試一次（PIS「檢核與重試」）。"""
     messages = [{"role": "user", "content": article_text}]
     reply = provider.complete(system, messages)
     try:
-        return parse_ai_json(reply)
+        return parse_ai_json(reply, allowed_outcomes)
     except (ValueError, json.JSONDecodeError) as first:
         messages += [
             {"role": "assistant", "content": reply},
             {"role": "user", "content": f"上一個回應不符合格式：{first}。請只輸出修正後的 JSON。"},
         ]
         reply = provider.complete(system, messages)
-        return parse_ai_json(reply)  # 第二次仍失敗就讓例外往外拋
+        return parse_ai_json(reply, allowed_outcomes)  # 第二次仍失敗就讓例外往外拋
 
 
 def run(claim_code: str, provider: Provider, env: dict[str, str], limit: int | None,
@@ -63,7 +69,9 @@ def run(claim_code: str, provider: Provider, env: dict[str, str], limit: int | N
     extractor = env.get("EXTRACTOR", "").strip()
     if not extractor:
         raise SystemExit("請在 .env 設定 EXTRACTOR（擷取人英文縮寫）")
-    system = (config.PROMPTS / f"extract_{claim_code}.md").read_text(encoding="utf-8")
+    claim = get_claim(claim_code)
+    system = render_prompt(claim)
+    allowed = outcome_codes(claim)
 
     candidates = load_yaml(config.LIT / "candidates.yaml", []) or []
     articles = {a["pmcid"]: a for a in load_yaml(config.LIT / "articles.yaml", []) or []}
@@ -85,7 +93,7 @@ def run(claim_code: str, provider: Provider, env: dict[str, str], limit: int | N
             text = get_text(pmcid)
             if not text.strip():
                 raise ValueError("取不到可用的全文段落")
-            data = extract_one(provider, system, text)
+            data = extract_one(provider, system, text, allowed)
         except ProviderError:
             _save(candidates, failed)
             raise  # 金鑰錯誤或額度用完：保留已完成結果後停止

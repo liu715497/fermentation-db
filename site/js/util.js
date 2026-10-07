@@ -16,9 +16,10 @@ export const STUDY_TYPE = {
   in_vitro: "細胞或體外試驗", review: "綜述", opinion: "意見",
 };
 export const LEVEL_DESC = { A: "人體隨機對照、統合分析", B: "人體非隨機、觀察性", C: "動物試驗", D: "細胞或體外" };
-export const OUTCOME = {
-  fpg: "空腹血糖", hba1c: "糖化血色素", ogtt_auc: "葡萄糖耐受曲線下面積", homa_ir: "胰島素阻抗指數",
-  ppg: "餐後血糖", insulin: "胰島素", other: "其他",
+// 評估指標名稱由各保健功效在 health_claims.yaml 的 outcomes 定義
+export const outcomeText = (codes, outcomes) => {
+  const names = Object.fromEntries((outcomes || []).map((o) => [o.code, o.name_zh]));
+  return (codes || []).map((c) => names[c] || c).join("、");
 };
 export const DIRECTION = { positive: "支持", null: "無顯著差異", negative: "相反" };
 export const INGREDIENT = { available: "可用", confirm: "需確認", unavailable: "不可用" };
@@ -42,8 +43,13 @@ export function legendHtml() {
     `<span><i style="background:var(--p-${k})"></i>${l}</span>`).join("")}</div>`;
 }
 
-// 健康食品路徑提示：2026-08-20 修正後的評估方法以人體試驗驗證，故只有 A、B 可直接對應
-export const healthFoodHint = (top) => (top === "A" || top === "B") ? "健康食品：已有人體證據" : "健康食品：需補人體試驗";
+// 健康食品路徑提示，依該功效評估方法是否只採人體試驗（health_claims.yaml human_trial_required）
+export function healthFoodHint(top, humanTrialRequired) {
+  const human = top === "A" || top === "B";
+  if (humanTrialRequired === true) return human ? "健康食品：已有人體證據" : "健康食品：需補人體試驗";
+  if (humanTrialRequired === false) return human ? "健康食品：已有人體證據" : "健康食品：已有動物或細胞證據";
+  return "健康食品：試驗要求待查證";
+}
 
 export function processSummary(findings) {
   const f = findings.find((x) => x.fermentation && (x.fermentation.temperature_c != null || x.fermentation.duration_h != null));
@@ -73,4 +79,16 @@ export function repoUrl() {
   if (!host.endsWith(".github.io")) return null;
   const repo = location.pathname.split("/").filter(Boolean)[0];
   return repo ? `https://github.com/${host.split(".")[0]}/${repo}` : null;
+}
+
+// v0.4.0 以前存的評估紀錄沒有記錄功效設定（當時只有調節血糖），讀取時補上當時的設定
+const LEGACY_GLYCEMIC = {
+  human_trial_required: true,
+  outcomes: [["fpg", "空腹血糖"], ["hba1c", "糖化血色素"], ["ogtt_auc", "葡萄糖耐受曲線下面積"], ["homa_ir", "胰島素阻抗指數"],
+             ["ppg", "餐後血糖"], ["insulin", "胰島素"], ["other", "其他"]].map(([code, name_zh]) => ({ code, name_zh })),
+};
+export function recordRegs(rec) {
+  const r = rec.regulations || {};
+  if (r.outcomes || rec.conditions?.claim !== "glycemic") return r;
+  return { ...r, ...LEGACY_GLYCEMIC };
 }

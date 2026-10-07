@@ -33,10 +33,8 @@ AI_FINDING = {
             "properties": {"amount": _nullable_num, "unit": _nullable_str, "frequency": _nullable_str},
         },
         "duration_days": {"type": ["integer", "null"]},
-        "outcomes": {
-            "type": "array",
-            "items": {"enum": ["fpg", "hba1c", "ogtt_auc", "homa_ir", "ppg", "insulin", "other"]},
-        },
+        # 指標代碼由各保健功效在 health_claims.yaml 定義；是否屬於該功效由 extract 與 validate 檢查
+        "outcomes": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}},
         "result_direction": {"enum": ["positive", "null", "negative"]},
         "summary_zh": {"type": "string", "maxLength": 60},
     },

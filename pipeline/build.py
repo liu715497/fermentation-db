@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 from pipeline import config
 from pipeline.evidence import level_for
+from pipeline.prompting import render_prompt
 from pipeline.io_utils import dump_json, load_json, load_yaml
 from pipeline.scoring import score_combination, worst_status
 from pipeline.taxonomy import build_alias_map, canonical_name, combo_id
@@ -106,7 +107,6 @@ def run(today: date | None = None) -> dict:
     dump_json(out / "findings.json", _jsonable(findings_out))
     dump_json(out / "regulations.json", _jsonable(regulations))
     # 擷取指示與本機擷取工具共用同一份檔案，網站即時檢索也讀這份，避免兩邊規則不一致
-    prompts = {c["code"]: (config.PROMPTS / f"extract_{c['code']}.md").read_text(encoding="utf-8")
-               for c in claims if c.get("enabled") and (config.PROMPTS / f"extract_{c['code']}.md").exists()}
+    prompts = {c["code"]: render_prompt(c) for c in claims if c.get("enabled")}
     dump_json(out / "prompts.json", prompts)
     return {"findings": len(findings_out), "combinations": len(combos)}

@@ -96,11 +96,11 @@ export function parseJats(xmlText) {
 }
 
 const DIRS = ["positive", "null", "negative"];
-const OUTS = ["fpg", "hba1c", "ogtt_auc", "homa_ir", "ppg", "insulin", "other"];
 const FORMS = ["beverage", "powder", "tablet", "capsule", "other"];
 
 // 與 pipeline/schema.py 相同的必要欄位檢查；不合格時拋出錯誤供重試
-export function checkAi(textOut) {
+// allowed：此保健功效的指標代碼（health_claims.yaml outcomes）
+export function checkAi(textOut, allowed) {
   let data = JSON.parse(textOut.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
   // 與 pipeline/extract.py normalize_ai 相同：模型省略外層時包回 {"findings": [...]}
   if (Array.isArray(data)) data = { findings: data };
@@ -114,7 +114,7 @@ export function checkAi(textOut) {
     if (!f.substrate) throw new Error(`${at}.substrate 缺少`);
     if (!(f.study_type in STUDY_TYPE_LEVEL)) throw new Error(`${at}.study_type 不是允許的代碼`);
     if (!DIRS.includes(f.result_direction)) throw new Error(`${at}.result_direction 不是允許的代碼`);
-    if (!Array.isArray(f.outcomes) || f.outcomes.some((o) => !OUTS.includes(o))) throw new Error(`${at}.outcomes 含不允許的代碼`);
+    if (!Array.isArray(f.outcomes) || f.outcomes.some((o) => !allowed.includes(o))) throw new Error(`${at}.outcomes 只能使用：${allowed.join("、")}`);
     if (typeof f.summary_zh !== "string" || !f.summary_zh.trim()) throw new Error(`${at}.summary_zh 缺少`);
     if (f.product_form != null && !FORMS.includes(f.product_form)) f.product_form = "other";
     f.summary_zh = f.summary_zh.trim().slice(0, 60);
@@ -122,12 +122,12 @@ export function checkAi(textOut) {
   return data.findings;
 }
 
-async function extractOne(prompt, article) {
+async function extractOne(prompt, article, allowed) {
   let out = await complete(prompt, article.fulltext, 4000);
-  try { return checkAi(out); }
+  try { return checkAi(out, allowed); }
   catch (first) {
     out = await complete(prompt, `${article.fulltext}\n\n（上一次輸出不符合格式：${first.message}。請只輸出修正後的 JSON。）`, 4000);
-    return checkAi(out);
+    return checkAi(out, allowed);
   }
 }
 
@@ -168,7 +168,7 @@ export async function runLive(opts) {
       }
       onLog(`AI 整理 ${a.pmcid}（第 ${pos}/${fresh.length} 篇）…`);
       try {
-        const fs = await extractOne(prompt, a);
+        const fs = await extractOne(prompt, a, (claim.outcomes || []).map((o) => o.code));
         const stamp = nowStr();
         fs.forEach((f, k) => {
           f.finding_id = `${a.pmcid}-${k + 1}`;

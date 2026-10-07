@@ -2,7 +2,7 @@
 
 import { complete, isConfigured } from "./ai.js";
 import { getRecord, listRecords, upsertRecord } from "./store.js";
-import { DIRECTION, DISCLAIMER, FORM, INGREDIENT, LEVEL_DESC, STUDY_TYPE, h, healthFoodHint, levelChip, nowStr, toast } from "./util.js";
+import { DIRECTION, DISCLAIMER, FORM, INGREDIENT, LEVEL_DESC, STUDY_TYPE, h, healthFoodHint, levelChip, nowStr, outcomeText, recordRegs, toast } from "./util.js";
 
 const FIELDS = [
   ["evaluator", "評估人（姓名、單位）", "text"],
@@ -103,7 +103,7 @@ export function renderReport(root, d, recordId) {
 
 const AI_SYSTEM = `你是食品研發評估助理，協助草擬發酵產品研發題目評估報告。依使用者提供的文獻整理資料撰寫，不得加入資料以外的事實或數字。
 只輸出 JSON：{"conclusion": "", "risk_evidence": "", "risk_regulatory": "", "inconsistency_note": "", "gaps": ""}
-規則：繁體中文；conclusion 3 句以內；gaps 一行一項，格式「缺口；影響；建議試驗；高/中/低」；健康食品調節血糖評估方法於 2026-08-20 修正為以人體試驗驗證，動物與細胞試驗僅作參考；不得寫成療效或功效保證。`;
+規則：繁體中文；conclusion 3 句以內；gaps 一行一項，格式「缺口；影響；建議試驗；高/中/低」；判斷健康食品可行性時，依資料中「評估方法說明」與「最新法規公告」；不得寫成療效或功效保證。`;
 
 function aiPayload(rec) {
   return {
@@ -112,8 +112,10 @@ function aiPayload(rec) {
     綜合分數: rec.combo.score, 分項: rec.combo.score_parts, 各等級篇數: rec.combo.counts_by_level,
     原料可用性: INGREDIENT[rec.combo.ingredient_status],
     健康食品評估方法: rec.regulations.evaluation_method?.name,
+    評估方法說明: rec.regulations.evidence_note || "未提供",
+    最新法規公告: (rec.regulations.announcements || [])[0]?.summary || "無",
     文獻: rec.findings.map((f) => ({ 年份: f.year, 試驗類型: STUDY_TYPE[f.study_type], 等級: f.level,
-      對象: f.subjects, 劑量: f.dose, 期間天數: f.duration_days, 結果: DIRECTION[f.result_direction], 摘要: f.summary_zh })),
+      對象: f.subjects, 指標: outcomeText(f.outcomes, recordRegs(rec).outcomes), 劑量: f.dose, 期間天數: f.duration_days, 結果: DIRECTION[f.result_direction], 摘要: f.summary_zh })),
     評估人意見: rec.opinion || "",
   };
 }
@@ -133,7 +135,7 @@ export function summaryHtml(rec, inp) {
     </tbody></table>
     <strong>前三名組合</strong>
     <table><thead><tr><th>名次</th><th>菌種</th><th>原料</th><th>製程</th><th>最高等級</th><th>篇數</th><th>分數</th><th>法規路徑</th></tr></thead><tbody>
-      ${rec.top10.slice(0, 3).map((t) => `<tr${t.combo_id === rec.combo.combo_id ? ' style="font-weight:700"' : ""}><td>${t.rank}</td><td><i>${h(t.organism_name)}</i></td><td>${h(t.substrate)}</td><td>${h(t.process)}</td><td>${h(t.top_level)}</td><td>${t.n_articles}</td><td>${t.score}</td><td>${h(healthFoodHint(t.top_level))}</td></tr>`).join("")}
+      ${rec.top10.slice(0, 3).map((t) => `<tr${t.combo_id === rec.combo.combo_id ? ' style="font-weight:700"' : ""}><td>${t.rank}</td><td><i>${h(t.organism_name)}</i></td><td>${h(t.substrate)}</td><td>${h(t.process)}</td><td>${h(t.top_level)}</td><td>${t.n_articles}</td><td>${t.score}</td><td>${h(healthFoodHint(t.top_level, recordRegs(rec).human_trial_required))}</td></tr>`).join("")}
     </tbody></table>
     ${rec.top10.slice(0, 3).some((t) => t.combo_id === rec.combo.combo_id) ? "" : `<p style="font-size:.8125rem">選定組合：<i>${h(rec.combo.organism_name)}</i> × ${h(rec.combo.substrate)}（${rec.combo.score} 分）</p>`}
     <strong>評估人建議</strong><p>${fill(inp.conclusion)}</p>

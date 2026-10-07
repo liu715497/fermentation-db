@@ -2,6 +2,7 @@
 
 import { liveData } from "./live.js";
 import { buildCombos } from "./rules.js";
+import { healthFoodHint } from "./util.js";
 
 let shared = null;
 
@@ -36,6 +37,8 @@ export async function loadData() {
 }
 
 export const claimInfo = (d, code) => d.regs.health_claims.find((c) => c.code === code);
+export const claimHint = (d, code, top) => healthFoodHintFor(claimInfo(d, code), top);
+const healthFoodHintFor = (claim, top) => healthFoodHint(top, claim?.human_trial_required);
 export const announcementsFor = (d, code) =>
   d.regs.announcements.filter((a) => (a.affects || []).includes(code)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 export const ingredientEntry = (d, name, type) =>

@@ -1,6 +1,7 @@
 // 查詢分頁（PES S02、S03；FR-M1-01～06）
 
-import { DISCLAIMER, FORM, INGREDIENT, anatomy, h, healthFoodHint, legendHtml, levelChip } from "./util.js";
+import { claimHint } from "./data.js";
+import { DISCLAIMER, FORM, INGREDIENT, anatomy, h, legendHtml, levelChip } from "./util.js";
 
 export const state = { claim: null, form: "any", prefer: "", exclude: "", levels: ["A", "B", "C", "D"], sort: "score" };
 export let lastResults = [];
@@ -44,7 +45,7 @@ export function renderQuery(root, d) {
     <details class="filters" id="q-details"><summary>查詢條件</summary><form class="panel" id="qform" aria-label="查詢條件">
       <div class="field"><label for="q-claim">保健功效</label>
         <select id="q-claim">${claims.map((c) => `<option value="${h(c.code)}">${h(c.name_zh)}</option>`).join("")}</select>
-        <div class="hint">測試版只開放調節血糖</div></div>
+        <div class="hint">目前開放 ${claims.length} 項：${claims.map((c) => h(c.name_zh)).join("、")}</div></div>
       <div class="field"><label for="q-form">產品型態</label>
         <select id="q-form"><option value="any">不限</option>${Object.entries(FORM).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
         <div class="hint">依文獻中的產品型態篩選</div></div>
@@ -111,7 +112,7 @@ function renderResults(el, d) {
         <span class="rank num">${i + 1}</span>
         <span><span class="combo-name"><span class="latin">${h(c.organism_name)}</span> × ${h(c.substrate)}</span>
           <span class="combo-meta"><span>最高 ${levelChip(c.top_level)}</span><span class="num">${c.n_articles} 篇</span>
-          <span>原料${h(INGREDIENT[c.ingredient_status])}</span><span>${h(healthFoodHint(c.top_level))}</span></span></span>
+          <span>原料${h(INGREDIENT[c.ingredient_status])}</span><span>${h(claimHint(d, c.health_claim, c.top_level))}</span></span></span>
         <span class="scorecell"><span class="score-num num">${c.score} <small>/ 100</small></span>${anatomy(c.score_parts)}</span>
       </a></li>`).join("")}</ol>`;
 }

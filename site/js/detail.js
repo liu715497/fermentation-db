@@ -4,8 +4,8 @@ import { announcementsFor, claimInfo, ingredientEntry } from "./data.js";
 import { lastResults, state as queryState } from "./search.js";
 import { upsertRecord } from "./store.js";
 import {
-  DIRECTION, DISCLAIMER, FORM, INGREDIENT, LEVEL_DESC, OUTCOME, PARTS, STUDY_TYPE,
-  anatomy, h, healthFoodHint, levelChip, nowStr, processSummary, repoUrl, toast,
+  DIRECTION, DISCLAIMER, FORM, INGREDIENT, LEVEL_DESC, PARTS, STUDY_TYPE,
+  anatomy, h, healthFoodHint, levelChip, nowStr, outcomeText, processSummary, repoUrl, toast,
 } from "./util.js";
 
 const v = (x, unit = "") => (x == null || x === "" ? "文獻未載明" : `${x}${unit}`);
@@ -26,15 +26,16 @@ const FIELDS = [
   ["劑量", (f) => (f.dose?.amount != null ? h(`${f.dose.amount} ${f.dose.unit || ""} ${f.dose.frequency || ""}`) : "文獻未載明")],
   ["期間", (f) => h(v(f.duration_days, " 天"))],
   ["產品型態", (f) => h(FORM[f.product_form] || "文獻未載明")],
-  ["指標", (f) => h((f.outcomes || []).map((o) => OUTCOME[o] || o).join("、") || "文獻未載明")],
+  ["指標", (f, d) => h(outcomeText(f.outcomes, claimInfo(d, f.health_claim)?.outcomes) || "文獻未載明")],
   ["結果", (f) => `<strong>${h(DIRECTION[f.result_direction])}</strong>：${h(f.summary_zh)}`],
   ["資料來源", (f) => extractionTag(f)],
 ];
 
-function findingsHtml(fs) {
-  if (fs.length === 1) return `<dl>${FIELDS.map(([l, r]) => `<dt>${l}</dt><dd>${r(fs[0])}</dd>`).join("")}</dl>`;
-  const same = FIELDS.filter(([, r]) => fs.every((f) => r(f) === r(fs[0])));
-  const diff = FIELDS.filter((x) => !same.includes(x));
+function findingsHtml(d, fs) {
+  const F = FIELDS.map(([l, r]) => [l, (f) => r(f, d)]);
+  if (fs.length === 1) return `<dl>${F.map(([l, r]) => `<dt>${l}</dt><dd>${r(fs[0])}</dd>`).join("")}</dl>`;
+  const same = F.filter(([, r]) => fs.every((f) => r(f) === r(fs[0])));
+  const diff = F.filter((x) => !same.includes(x));
   return `<p class="small muted" style="margin:.5rem 0 0">本篇有 ${fs.length} 個試驗組，計分時算作 1 篇文獻。</p>
     <dl>${same.map(([l, r]) => `<dt>${l}</dt><dd>${r(fs[0])}</dd>`).join("")}</dl>
     <div class="table-wrap" style="margin-top:.5rem"><table class="data"><thead><tr><th>試驗組</th>${diff.map(([l]) => `<th>${l}</th>`).join("")}</tr></thead>
@@ -49,7 +50,7 @@ function articleBlock(d, pmcid, fs) {
   return `<article class="article">
     <h4>${h(a.title || pmcid)}</h4>
     <div class="small muted">${h(a.first_author || "")}${a.year ? `，${a.year}` : ""}${a.journal ? `，${h(a.journal)}` : ""}　${h(pmcid)}　授權：${h(known ? a.license : "不明")}</div>
-    ${known ? findingsHtml(fs) : `<p class="small">授權不明，僅提供連結。</p>`}
+    ${known ? findingsHtml(d, fs) : `<p class="small">授權不明，僅提供連結。</p>`}
     <div class="actions"><a class="btn quiet" href="${h(a.url || `https://pmc.ncbi.nlm.nih.gov/articles/${pmcid}/`)}" target="_blank" rel="noopener">開啟原文</a>
       ${issue ? `<a class="btn quiet" href="${h(issue)}" target="_blank" rel="noopener">回報資料錯誤</a>` : ""}</div>
   </article>`;
@@ -68,12 +69,12 @@ export function regulationHtml(d, combo, findings) {
   ${ann ? `<div class="notice warn small"><strong>法規有更新</strong>：${h(ann.date)} ${h(ann.title)}。<a href="${h(ann.url)}" target="_blank" rel="noopener">公告來源</a></div>` : ""}
   <div class="paths">
     <div class="panel"><h3 style="margin-top:0">以一般食品上市</h3>
-      <p>不得宣稱調節血糖等保健功效或醫療效能，訴求應放在原料、風味或製程特色。</p>
+      <p>不得宣稱${h(claim.name_zh || "")}等保健功效或醫療效能，訴求應放在原料、風味或製程特色。</p>
       <ul class="small">${laws.map((l) => `<li>${h(l.name_zh)}${l.relevant_articles && l.relevant_articles !== "待填" ? `（${h(l.relevant_articles)}）` : ""} ${recheck(l)}</li>`).join("")}</ul></div>
     <div class="panel"><h3 style="margin-top:0">申請健康食品</h3>
       <p>評估方法：${em.url ? `<a href="${h(em.url)}" target="_blank" rel="noopener">${h(em.name)}</a>` : h(em.name || "未設定")}${em.announced ? `（${h(em.announced)} 公告）` : ""}</p>
       <p>試驗要求：${em.requirements && em.requirements !== "待填" ? h(em.requirements) : "尚待維護人員依公告附件填寫"}</p>
-      <p><strong>${h(healthFoodHint(combo.top_level))}</strong>。修正後的評估方法以人體試驗驗證，動物與細胞試驗只能作為機轉與劑量參考。</p>
+      <p><strong>${h(healthFoodHint(combo.top_level, claim.human_trial_required))}</strong>。${h(claim.evidence_note || (claim.human_trial_required === true || claim.human_trial_required === false ? "" : "此功效的評估方法試驗要求尚待維護人員查證。"))}</p>
       ${recheck(claim)}</div>
   </div>
   <h3>原料可用性</h3>
@@ -116,7 +117,7 @@ export function renderCombo(root, d, comboId) {
 
   const dlg = root.querySelector("#dlg-save");
   root.querySelector("#save-rec").addEventListener("click", () => {
-    dlg.querySelector("#r-title").value = `以 ${c.organism_name} 發酵 ${c.substrate} 開發調節血糖產品`;
+    dlg.querySelector("#r-title").value = `以 ${c.organism_name} 發酵 ${c.substrate} 開發${claimInfo(d, c.health_claim)?.name_zh || ""}產品`;
     dlg.showModal();
   });
   dlg.addEventListener("close", () => {
@@ -148,6 +149,8 @@ function snapshot(d, c, fs, title, opinion) {
     top10: top,
     regulations: {
       evaluation_method: claim?.evaluation_method, claim_checked_at: claim?.checked_at,
+      outcomes: claim?.outcomes || [], human_trial_required: claim?.human_trial_required ?? null,
+      evidence_note: claim?.evidence_note || null,
       laws: d.regs.laws, announcements: announcementsFor(d, c.health_claim),
       organism: ingredientEntry(d, c.organism_name, "organism") || null,
       substrate: ingredientEntry(d, c.substrate, "substrate") || null,

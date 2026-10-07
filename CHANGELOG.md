@@ -1,5 +1,14 @@
 # 變更紀錄
 
+## 0.4.0（2026-10-07）
+
+- 支援任意保健功效：新增功效只需編輯 health_claims.yaml（新增 focus、outcomes、human_trial_required、evidence_note、prompt_notes 欄位）
+- 擷取指示改為共用範本 pipeline/prompts/extract_template.md，取代 extract_glycemic.md；build 依各功效設定產生 prompts.json
+- 評估指標代碼改由各功效定義；本機擷取工具、網站文獻檢索與 validate 都會檢查指標代碼是否屬於該功效，不符時要求 AI 重試
+- 網站移除寫死的調節血糖文字：指標名稱、健康食品路徑提示、法規說明、報告 AI 草擬指示都改讀功效設定
+- 健康食品路徑提示依 human_trial_required 顯示；未查證時顯示「試驗要求待查證」
+- 舊版（0.3.x）存的評估紀錄可照常產出報告
+
 ## 0.3.2（2026-10-07）
 
 - 調節血糖查詢式改用發酵食品用語（fermented、koji、kombucha、natto、kimchi、tempeh、kefir、yogurt、red yeast rice），不再以 ferment*、lactobacill*、bifidobacter* 為條件；試跑時原式抓到的 10 篇最新文獻全部不符合範圍

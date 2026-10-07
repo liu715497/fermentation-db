@@ -75,13 +75,34 @@ mkdir -p _site/data && cp -r site/. _site/ && cp data/build/*.json _site/data/
 python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8000
 ```
 
-即時檢索與共用資料庫可以並存：共用資料庫由 `pipeline` 建置（每季、經人工複核），即時檢索結果在瀏覽器內與它合併，用同一套規則計分（`site/js/rules.js` 與 `pipeline/scoring.py` 須同步修改）。擷取指示只有一份：`pipeline/prompts/extract_glycemic.md`，build 時輸出成 `prompts.json` 供網站使用。
+即時檢索與共用資料庫可以並存：共用資料庫由 `pipeline` 建置（每季、經人工複核），即時檢索結果在瀏覽器內與它合併，用同一套規則計分（`site/js/rules.js` 與 `pipeline/scoring.py` 須同步修改）。擷取指示只有一份範本：`pipeline/prompts/extract_template.md`，build 時依各保健功效設定產生 `prompts.json` 供網站使用。
+
+## 新增保健功效
+
+新增一項保健功效只需編輯 `data/regulations/health_claims.yaml`，不用改程式。複製調節血糖那一段，修改以下欄位：
+
+| 欄位 | 說明 | 範例（調節血脂） |
+| --- | --- | --- |
+| `code` | 英文代碼，建立後不要再改 | `lipid` |
+| `name_zh` | 中文名稱，顯示在網站 | 調節血脂 |
+| `enabled` | 是否在網站開放；查證完成前可先設 `false` | `true` |
+| `focus` | 擷取主題，會帶入給 AI 的指示 | 發酵產品對血脂調節 |
+| `outcomes` | 評估指標的英文代碼與中文名稱，最後一項固定為 `other` | `{code: tg, name_zh: 三酸甘油酯}` |
+| `human_trial_required` | 健康食品評估方法是否只採人體試驗；未查證填 `待填` | `待填` |
+| `evidence_note` | 顯示在法規路徑的一句說明，選填 | |
+| `prompt_notes` | 給 AI 的此項專屬補充說明，選填 | 血脂指標須為血清或血漿數值 |
+| `evaluation_method` | 評估方法名稱、公告日期、連結、試驗要求 | |
+| `search_query` | PMC 查詢式，建議沿用調節血糖的發酵食品用語，只換功效用語 | |
+
+所有功效共用同一份擷取指示範本 `pipeline/prompts/extract_template.md`，`focus`、`outcomes`、`prompt_notes` 會自動填入。存檔後 GitHub 會自動檢核（例如指標代碼重複、缺少 `other`），通過後重新部署，網站的查詢與文獻檢索就會出現新的功效。
+
+上線前請執行 `python -m pipeline validate --strict`，確認沒有「待填」欄位。
 
 ## 驗證狀態
 
 已驗證（2026-10-07，於開發環境執行）：
 
-- 28 個單元測試全部通過，含 SQA TC-D01～D08、D10、D13、D14 與四種 AI 轉接的請求格式。
+- 34 個單元測試全部通過，含「只改設定檔即可新增保健功效」的 5 個測試，含 SQA TC-D01～D08、D10、D13、D14 與四種 AI 轉接的請求格式。
 - `validate` 與 `build` 對目前的範本資料可正常執行。
 - 文獻檢索以模擬的 PMC 與 AI 回應在 Chromium 實測：查詢、授權不明略過、AI 輸出格式錯誤時自動重試、結果寫入瀏覽器並出現在查詢排名、重複執行時略過已檢索的文獻、停止按鈕與清除結果。
 - 網站計分（rules.js）與 pipeline 計分在示範資料上 5 個組合分數完全一致。

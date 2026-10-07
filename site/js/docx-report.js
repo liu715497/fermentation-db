@@ -2,7 +2,7 @@
 // 測試版決定：不顯示本所名稱與標誌；頁首標示「測試版」與「草稿」，無核定流程。
 
 import { nextReportNo } from "./store.js";
-import { DIRECTION, DISCLAIMER, FORM, INGREDIENT, OUTCOME, STUDY_TYPE, compactDate, download, nowStr } from "./util.js";
+import { DIRECTION, DISCLAIMER, FORM, INGREDIENT, STUDY_TYPE, compactDate, download, healthFoodHint, nowStr, outcomeText, recordRegs } from "./util.js";
 
 const VENDOR = "vendor/docx-9.9.0.iife.js";
 const CONTENT_W = 9638;            // A4 寬 11906 − 左右邊界各 1134（2.0 cm），單位 DXA
@@ -58,7 +58,7 @@ export async function buildFormalReport(rec, inp) {
   const lid = Object.fromEntries(pmcids.map((p, i) => [p, `L${i + 1}`]));
   const reviewTag = (f) => (f.extraction?.status === "reviewed" ? `已複核（${f.extraction.reviewer}）` : "自動擷取，未複核");
   const unreviewed = rec.findings.filter((f) => f.extraction?.status !== "reviewed").length;
-  const hfPath = (lv) => (lv === "A" || lv === "B" ? "健康食品：已有人體證據" : "健康食品：需補人體試驗");
+  const hfPath = (lv) => healthFoodHint(lv, recordRegs(rec).human_trial_required);
   const formName = cond.form === "any" ? "不限" : FORM[cond.form] || cond.form;
   const gaps = blank(inp.gaps) === "【未填寫】" ? [["【未填寫】", "", "", ""]]
     : inp.gaps.split(/\n/).filter((l) => l.trim()).map((l) => { const p = l.split(/[;；]/).map((x) => x.trim()); while (p.length < 4) p.push(""); return p.slice(0, 4); });
@@ -109,7 +109,7 @@ export async function buildFormalReport(rec, inp) {
       pmcids.flatMap((p) => byArticle[p].map((f) => [lid[p], `${arts[p]?.first_author || ""}, ${arts[p]?.year || ""}`, p, `${f.level} ${STUDY_TYPE[f.study_type] || ""}`,
         `${f.subjects?.population || "未載明"}${f.subjects?.n != null ? `，${f.subjects.n}` : ""}`,
         `${f.dose?.amount != null ? `${f.dose.amount} ${f.dose.unit || ""} ${f.dose.frequency || ""}` : "未載明"}${f.duration_days != null ? `，${f.duration_days} 天` : ""}`,
-        `${DIRECTION[f.result_direction]}：${f.summary_zh}（${(f.outcomes || []).map((o) => OUTCOME[o] || o).join("、")}）`, reviewTag(f)])),
+        `${DIRECTION[f.result_direction]}：${f.summary_zh}（${outcomeText(f.outcomes, recordRegs(rec).outcomes)}）`, reviewTag(f)])),
       [6, 12, 11, 11, 13, 13, 24, 10]),
     H2("4.2 證據等級分布"), caption("表 4-2 證據等級篇數"),
     table(["等級", "A", "B", "C", "D", "合計"], [["篇數", ...["A", "B", "C", "D"].map((lv) => c.counts_by_level[lv] || 0), c.n_articles]], [2, 1, 1, 1, 1, 1]),
