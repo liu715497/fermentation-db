@@ -1,0 +1,8 @@
+# 原料與菌種可用性（取自食藥署可供食品使用原料清單）。未列於此檔者，網站顯示「需確認」。
+# 格式範例（查證後再加入，勿未查證就填 available）：
+# - name: Lactiplantibacillus plantarum
+#   type: organism          # organism / substrate
+#   status: available       # available / confirm / unavailable
+#   source: <清單連結>
+#   checked_at: 2026-10-07
+[]

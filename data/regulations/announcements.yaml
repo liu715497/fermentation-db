@@ -1,0 +1,7 @@
+# 法規公告紀錄（PES M5）。affects 填 health_claims.yaml 的 code。
+- date: 2026-08-20
+  agency: 衛生福利部食品藥物管理署
+  title: 公告修正「健康食品之調節血糖功能評估方法」，名稱並修正為「健康食品之調節血糖保健功效評估方法」
+  url: https://www.fda.gov.tw/TC/news.aspx?cid=3&pn=2
+  affects: [glycemic]
+  summary: 刪除動物功效實驗，改以人體試驗驗證，設 2 年過渡期（待以公告原文確認）

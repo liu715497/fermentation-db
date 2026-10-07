@@ -1,0 +1,11 @@
+# 相關法規。條號與連結須由維護人員至全國法規資料庫查證後填寫。
+- code: food_safety_act
+  name_zh: 食品安全衛生管理法
+  relevant_articles: 待填   # 標示與廣告相關條號
+  url: 待填
+  checked_at: null
+- code: health_food_act
+  name_zh: 健康食品管理法
+  relevant_articles: 待填
+  url: 待填
+  checked_at: null

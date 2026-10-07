@@ -1,0 +1,11 @@
+# 菌種舊名對照（2020 年乳桿菌屬重新分類）。維護人員查核後填 checked_at。
+checked_at: null
+aliases:
+  - {old: Lactobacillus plantarum, current: Lactiplantibacillus plantarum}
+  - {old: Lactobacillus casei, current: Lacticaseibacillus casei}
+  - {old: Lactobacillus paracasei, current: Lacticaseibacillus paracasei}
+  - {old: Lactobacillus rhamnosus, current: Lacticaseibacillus rhamnosus}
+  - {old: Lactobacillus fermentum, current: Limosilactobacillus fermentum}
+  - {old: Lactobacillus reuteri, current: Limosilactobacillus reuteri}
+  - {old: Lactobacillus brevis, current: Levilactobacillus brevis}
+  - {old: Lactobacillus sakei, current: Latilactobacillus sakei}
