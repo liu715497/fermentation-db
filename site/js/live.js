@@ -161,7 +161,8 @@ async function summaries(ids, signal) {
       const d = res[uid] || {};
       const aid = Object.fromEntries((d.articleids || []).map((x) => [x.idtype, x.value]));
       const y = String(d.pubdate || d.epubdate || "").match(/\d{4}/);
-      out[uid] = { doi: aid.doi || null, year: y ? Number(y[0]) : null, title: d.title || "" };
+      out[uid] = { doi: aid.doi || null, pmid: aid.pmid || null, year: y ? Number(y[0]) : null, title: d.title || "",
+                   journalName: d.fulljournalname || d.source || null };
     }
   }
   return out;
@@ -188,16 +189,24 @@ export async function screen(claim, p, knownIds, onLog, signal) {
   let rows = ids.filter((id) => !knownIds.has(`PMC${id}`)).map((id) => ({ pmcid: `PMC${id}`, n: Number(id), human: human.has(id) ? 1 : 0 }));
   const done = ids.length - rows.length;
 
+  // 書目（標題、年份、DOI、PMID）一律先取，供預覽勾選與查摘要；不花 AI 費用
+  let meta = {};
+  if (rows.length) {
+    try {
+      meta = await summaries(rows.map((r) => String(r.n)), signal);
+      rows.forEach((r) => { const s = meta[String(r.n)] || {};
+        Object.assign(r, { doi: s.doi, pmid: s.pmid, year: s.year, title: s.title, journalName: s.journalName }); });
+    } catch (err) { if (err.name === "AbortError") throw err; notes.push(`書目資料取得失敗（${err.message.slice(0, 60)}）`); }
+  }
   const needMetrics = p.useOpenAlex || p.sort === "cited" || p.sort === "journal" || p.minCited || p.minJournal || p.type !== "any";
   if (rows.length && needMetrics) {
     onLog(`查詢 ${rows.length} 篇的被引用數與期刊指標（OpenAlex）…`);
     try {
-      const meta = await summaries(rows.map((r) => String(r.n)), signal);
-      const m = await lookup(Object.values(meta).map((x) => x.doi), signal);
+      const m = await lookup(rows.map((r) => r.doi), signal);
       rows.forEach((r) => {
-        const s = meta[String(r.n)] || {}; const w = m.get(normDoi(s.doi)) || {};
-        Object.assign(r, { doi: s.doi, year: s.year, title: s.title, cited: w.cited_by_count ?? null, journal: w.journal_2yr ?? null,
-                           type: w.work_type || null, journalName: w.journal_name || null });
+        const w = m.get(normDoi(r.doi)) || {};
+        Object.assign(r, { cited: w.cited_by_count ?? null, journal: w.journal_2yr ?? null,
+                           type: w.work_type || null, journalName: w.journal_name || r.journalName || null });
       });
       const miss = rows.filter((r) => r.cited == null).length;
       if (miss) notes.push(`${miss} 篇在 OpenAlex 查無資料，被引用數與期刊指標不計分，也不受這兩項篩選排除`);
@@ -222,16 +231,23 @@ export async function screen(claim, p, knownIds, onLog, signal) {
  * 回傳統計；結果寫入本瀏覽器。
  */
 export async function runLive(opts) {
-  const { claim, prompt, regs, params, count, knownIds, onLog, signal } = opts;
-  onLog("查詢 PMC 開放取用文獻…");
-  const sc = await screen(claim, params, knownIds, onLog, signal);
-  sc.notes.forEach((n) => onLog(`  註：${n}`));
-  const picked = sc.eligible.slice(0, count);
+  const { claim, prompt, regs, params, count, knownIds, onLog, signal, selection } = opts;
+  let picked, total, remaining;
+  if (selection) {
+    // 使用者在預覽中勾選的文獻：不再重新篩選，依勾選順序處理，已處理過的略過
+    picked = selection.filter((r) => !knownIds.has(r.pmcid));
+    total = selection.length; remaining = 0;
+    onLog(`分析勾選的 ${picked.length} 篇文獻${selection.length > picked.length ? `（${selection.length - picked.length} 篇先前已處理，略過）` : ""}。`);
+  } else {
+    onLog("查詢 PMC 開放取用文獻…");
+    const sc = await screen(claim, params, knownIds, onLog, signal);
+    sc.notes.forEach((n) => onLog(`  註：${n}`));
+    picked = sc.eligible.slice(0, count); total = sc.total; remaining = sc.eligible.length - picked.length;
+    onLog(`PMC 共 ${sc.total} 篇符合；已處理過 ${sc.done} 篇；篩選後尚有 ${sc.eligible.length} 篇，本次處理 ${picked.length} 篇。`);
+  }
   const byPmc = Object.fromEntries(picked.map((r) => [r.pmcid, r]));
   const fresh = picked.map((r) => r.pmcid);
-  const remaining = sc.eligible.length - fresh.length;
-  onLog(`PMC 共 ${sc.total} 篇符合；已處理過 ${sc.done} 篇；篩選後尚有 ${sc.eligible.length} 篇，本次處理 ${fresh.length} 篇。`);
-  const stats = { found: sc.total, done: 0, findings: 0, notFermented: 0, unknownLicense: 0, failed: 0, remaining };
+  const stats = { found: total, done: 0, findings: 0, notFermented: 0, unknownLicense: 0, failed: 0, remaining };
   if (!fresh.length) return stats;
 
   const store = liveData();
@@ -282,4 +298,25 @@ export async function runLive(opts) {
     }
   }
   return stats;
+}
+
+// 預覽時查看摘要：有 PMID 時取 PubMed 摘要（資料量小），否則取 PMC 全文中的摘要段落。不花 AI 費用。
+const absCache = new Map();
+export async function fetchAbstract(row, signal) {
+  if (absCache.has(row.pmcid)) return absCache.get(row.pmcid);
+  let text = "";
+  if (row.pmid) {
+    const r = await ncbi("efetch.fcgi", { db: "pubmed", id: row.pmid, retmode: "xml" }, signal);
+    const doc = new DOMParser().parseFromString(await r.text(), "application/xml");
+    text = [...doc.getElementsByTagName("AbstractText")]
+      .map((e) => `${e.getAttribute("Label") ? `${e.getAttribute("Label")}: ` : ""}${e.textContent.replace(/\s+/g, " ").trim()}`).join("\n");
+  }
+  if (!text) {
+    const r = await ncbi("efetch.fcgi", { db: "pmc", id: row.pmcid.slice(3), retmode: "xml" }, signal);
+    const a = parseJats(await r.text())[0];
+    text = (a?.fulltext.match(/\[ABSTRACT\] ([^\n]*)/) || [])[1] || "";
+  }
+  text = text || "此文獻沒有可取得的摘要，請開啟原文。";
+  absCache.set(row.pmcid, text);
+  return text;
 }

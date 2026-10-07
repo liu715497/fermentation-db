@@ -2,10 +2,13 @@
 
 import { PROVIDERS, getSettings, isConfigured } from "./ai.js";
 import { claimInfo } from "./data.js";
-import { buildTerm, clearLive, liveData, runLive, screen } from "./live.js";
+import { buildTerm, clearLive, fetchAbstract, liveData, runLive, screen } from "./live.js";
 import { h } from "./util.js";
 
 let controller = null;
+let lastScreen = null;          // 上次預覽的篩選結果
+const picked = new Set();       // 預覽中勾選的 PMCID
+const MAX_LIST = 200;
 const P = { claim: null, mustAll: "", anyOf: "", exclude: "", yearFrom: "", yearTo: "", type: "any",
             minCited: "", minJournal: "", sort: "human", count: "10", advanced: "", useOpenAlex: true };
 const SEC_PER_ARTICLE = 20;   // 每篇約 10～30 秒，取中間值估算
@@ -43,7 +46,7 @@ export function renderLive(root, d) {
       <div class="field"><label for="l-jr">期刊指標至少</label><input type="text" id="l-jr" inputmode="decimal" placeholder="不限"><div class="hint">期刊 2 年平均被引用數</div></div>
       <div class="field"><label for="l-sort">處理順序</label><select id="l-sort">${opt(SORT, P.sort)}</select></div>
     </div>
-    <div class="field"><label for="l-n">本次處理篇數</label>
+    <div class="field"><label for="l-n">直接處理時的篇數</label>
       <select id="l-n">${["5", "10", "20", "50", "all"].map((v) => `<option value="${v}"${v === P.count ? " selected" : ""}>${v === "all" ? "全部" : v}</option>`).join("")}</select>
       <div class="hint" id="l-est"></div></div>
     <details class="field"><summary>進階：自訂完整查詢式</summary>
@@ -52,8 +55,8 @@ export function renderLive(root, d) {
       <button type="button" class="btn quiet" id="l-show">帶入目前條件產生的查詢式</button></details>
     <p class="small muted">使用 AI：${h(PROVIDERS[s.provider] || s.provider)}${s.model ? `／${h(s.model)}` : ""}</p>
     <div class="actions">
-      <button type="button" class="btn secondary" id="l-preview">預覽篩選結果（不花 AI 費用）</button>
-      <button class="btn" id="l-go" ${ready ? "" : "disabled"}>開始檢索</button>
+      <button type="button" class="btn" id="l-preview">預覽並勾選文獻（不花 AI 費用）</button>
+      <button class="btn secondary" id="l-go" ${ready ? "" : "disabled"}>不預覽，直接依順序處理</button>
       <button type="button" class="btn quiet" id="l-stop" hidden>停止</button>
     </div>
   </form>
@@ -92,39 +95,85 @@ export function renderLive(root, d) {
   };
   summary();
 
+  // 預覽：列出篩選後的文獻供勾選，可展開摘要；只有勾選的才送 AI 分析
+  const renderPreview = () => {
+    const sc = lastScreen; if (!sc) return;
+    const done = known();
+    const rows = sc.eligible.slice(0, MAX_LIST);
+    $("#l-prev").innerHTML = `<div class="panel" style="margin-top:1rem">
+      <h3 style="margin-top:0">預覽：篩選後 ${sc.eligible.length} 篇</h3>
+      <p class="small">PMC 共 ${sc.total} 篇符合查詢式；先前已處理 ${sc.done} 篇。${sc.notes.map(h).join("；")}</p>
+      <p class="small muted">查詢式：${h(sc.term)}</p>
+      ${rows.length ? `<p class="small">先看標題與摘要，勾選值得分析的文獻，只有勾選的會使用 AI 額度。</p>
+      <div class="actions" style="margin-top:0">
+        <button type="button" class="btn quiet" data-pick="all">全選</button>
+        <button type="button" class="btn quiet" data-pick="none">全不選</button>
+        <button type="button" class="btn quiet" data-pick="10">勾選前 10 篇</button>
+      </div>
+      <div class="table-wrap" style="margin-top:.5rem"><table class="data"><thead><tr><th>分析</th><th>順序</th><th>文獻</th><th>年份</th><th>類型</th><th>被引用</th><th>期刊指標</th><th>摘要</th></tr></thead><tbody>
+      ${rows.map((r, i) => { const isDone = done.has(r.pmcid); return `<tr>
+        <td><input type="checkbox" class="pick" value="${h(r.pmcid)}" ${isDone ? "disabled" : picked.has(r.pmcid) ? "checked" : ""} aria-label="勾選 ${h(r.title || r.pmcid)}"></td>
+        <td class="num">${i + 1}</td>
+        <td><a href="https://pmc.ncbi.nlm.nih.gov/articles/${h(r.pmcid)}/" target="_blank" rel="noopener">${h(r.title || r.pmcid)}</a>
+          ${r.human ? ' <span class="tag ok">人體試驗用語</span>' : ""}${isDone ? ' <span class="tag">已分析</span>' : ""}
+          ${r.journalName ? `<div class="small muted">${h(r.journalName)}</div>` : ""}</td>
+        <td class="num">${r.year ?? ""}</td><td>${h(r.type || "—")}</td><td class="num">${r.cited ?? "—"}</td><td class="num">${r.journal ?? "—"}</td>
+        <td><button type="button" class="btn quiet abs" data-i="${i}">看摘要</button></td></tr>
+        <tr class="abs-row" id="abs-${i}" hidden><td></td><td colspan="7" class="small"></td></tr>`; }).join("")}
+      </tbody></table></div>
+      ${sc.eligible.length > MAX_LIST ? `<p class="small muted">只列前 ${MAX_LIST} 篇；可加上年份或關鍵字縮小範圍。</p>` : ""}
+      <div class="actions"><button type="button" class="btn" id="l-sel" ${isConfigured() ? "" : "disabled"}></button><span class="small muted" id="l-sel-est"></span></div>` : ""}
+    </div>`;
+    const upd = () => {
+      const n = picked.size; const b = $("#l-sel"); if (!b) return;
+      b.textContent = `分析勾選的 ${n} 篇`; b.disabled = !n || !isConfigured();
+      $("#l-sel-est").textContent = n ? `預估 ${est(n)}` : "尚未勾選";
+    };
+    root.querySelectorAll(".pick").forEach((cb) => cb.addEventListener("change", () => { cb.checked ? picked.add(cb.value) : picked.delete(cb.value); upd(); }));
+    root.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
+      const boxes = [...root.querySelectorAll(".pick:not([disabled])")];
+      boxes.forEach((cb, i) => { cb.checked = b.dataset.pick === "all" || (b.dataset.pick === "10" && i < 10); });
+      picked.clear(); boxes.filter((cb) => cb.checked).forEach((cb) => picked.add(cb.value)); upd();
+    }));
+    root.querySelectorAll(".abs").forEach((b) => b.addEventListener("click", async () => {
+      const tr = $(`#abs-${b.dataset.i}`); const cell = tr.lastElementChild;
+      if (!tr.hidden) { tr.hidden = true; b.textContent = "看摘要"; return; }
+      tr.hidden = false; b.textContent = "收合"; cell.textContent = "讀取中…";
+      try { cell.textContent = await fetchAbstract(rows[Number(b.dataset.i)]); cell.style.whiteSpace = "pre-wrap"; }
+      catch (err) { cell.textContent = `摘要讀取失敗：${err.message}`; }
+    }));
+    $("#l-sel")?.addEventListener("click", () => go(null, sc.eligible.filter((r) => picked.has(r.pmcid))));
+    upd();
+  };
+
   $("#l-preview").addEventListener("click", async () => {
     sync(); controller = new AbortController(); $("#l-prev").innerHTML = `<p class="small">篩選中…</p>`;
-    try {
-      const sc = await screen(claimInfo(d, P.claim), params(), known(), () => {}, controller.signal);
-      $("#l-prev").innerHTML = `<div class="panel" style="margin-top:1rem"><h3 style="margin-top:0">預覽：篩選後 ${sc.eligible.length} 篇待處理</h3>
-        <p class="small">PMC 共 ${sc.total} 篇符合查詢式；已處理過 ${sc.done} 篇。${sc.notes.map(h).join("；")}</p>
-        <p class="small muted">查詢式：${h(sc.term)}</p>
-        ${sc.eligible.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>順序</th><th>文獻</th><th>年份</th><th>類型</th><th>被引用</th><th>期刊指標</th></tr></thead><tbody>
-        ${sc.eligible.slice(0, 15).map((r, i) => `<tr><td class="num">${i + 1}</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/${r.pmcid}/" target="_blank" rel="noopener">${h(r.title || r.pmcid)}</a>${r.human ? ' <span class="tag ok">人體試驗用語</span>' : ""}</td><td class="num">${r.year ?? ""}</td><td>${h(r.type || "—")}</td><td class="num">${r.cited ?? "—"}</td><td class="num">${r.journal ?? "—"}</td></tr>`).join("")}
-        </tbody></table></div>${sc.eligible.length > 15 ? `<p class="small muted">只列前 15 篇。</p>` : ""}` : ""}</div>`;
-    } catch (err) { $("#l-prev").innerHTML = `<div class="notice bad">${h(err.message)}</div>`; }
+    try { lastScreen = await screen(claimInfo(d, P.claim), params(), known(), () => {}, controller.signal); picked.clear(); renderPreview(); }
+    catch (err) { $("#l-prev").innerHTML = `<div class="notice bad">${h(err.message)}</div>`; }
     finally { controller = null; }
   });
+  renderPreview();   // 切換分頁再回來時保留上次的預覽與勾選
 
-  const go = async (e) => {
-    e?.preventDefault(); sync();
+  const go = async (e, selection = null) => {
+    e?.preventDefault?.(); sync();
     const prompt = d.prompts?.[P.claim];
     if (!prompt) { say("缺少擷取指示檔，無法執行。"); return; }
     let count = P.count === "all" ? 500 : Number(P.count);
     controller = new AbortController();
     $("#l-go").disabled = true; $("#l-stop").hidden = false; log.textContent = "尚未開始"; $("#l-done").innerHTML = "";
     try {
-      if (P.count === "all") {
+      if (!selection && P.count === "all") {
         const sc = await screen(claimInfo(d, P.claim), params(), known(), () => {}, controller.signal);
         if (!confirm(`篩選後共 ${sc.eligible.length} 篇，預估 ${est(sc.eligible.length)}，並會使用相應的 AI 額度。確定全部處理？`)) { say("已取消。"); return; }
         count = sc.eligible.length;
       }
       const st = await runLive({ claim: claimInfo(d, P.claim), prompt, regs: d.regs, params: params(), count, knownIds: known(),
-                                 provider: getSettings().provider, model: getSettings().model, onLog: say, signal: controller.signal });
+                                 provider: getSettings().provider, model: getSettings().model, onLog: say, signal: controller.signal, selection });
+      if (selection) { selection.forEach((r) => picked.delete(r.pmcid)); renderPreview(); }
       say(`完成：整理 ${st.done} 篇，取得 ${st.findings} 筆發酵相關結果；非發酵 ${st.notFermented} 筆、授權不明 ${st.unknownLicense} 篇、失敗 ${st.failed} 篇。`);
       $("#l-done").innerHTML = `<div class="actions"><a class="btn" href="#query">到查詢看結果</a>
         ${st.remaining > 0 ? `<button type="button" class="btn secondary" id="l-more">繼續處理剩下的 ${st.remaining} 篇中的下一批</button>` : ""}</div>`;
-      $("#l-more")?.addEventListener("click", go);
+      $("#l-more")?.addEventListener("click", () => go());
     } catch (err) {
       say(err.name === "AbortError" ? "已停止，已完成的文獻都已保存。" : `中止：${err.message}`);
     } finally {

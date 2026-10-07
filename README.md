@@ -77,6 +77,20 @@ python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8
 
 即時檢索與共用資料庫可以並存：共用資料庫由 `pipeline` 建置（每季、經人工複核），即時檢索結果在瀏覽器內與它合併，用同一套規則計分（`site/js/rules.js` 與 `pipeline/scoring.py` 須同步修改）。擷取指示只有一份範本：`pipeline/prompts/extract_template.md`，build 時依各保健功效設定產生 `prompts.json` 供網站使用。
 
+## 文獻檢索參數（v0.5.0）
+
+| 參數 | 何時套用 | 說明 |
+| --- | --- | --- |
+| 關鍵字：必須包含、任一包含、排除 | PMC 查詢 | 逗號分隔；片語直接輸入 |
+| 發表年份 | PMC 查詢 | 以 `[pdat]` 篩選 |
+| 文章類型、最少被引用數、期刊指標下限 | 送 AI 前 | 資料來自 OpenAlex；查無資料的文獻不受這兩項數值篩選排除 |
+| 處理順序 | 送 AI 前 | 人體試驗優先、最新收錄、被引用數最高、期刊指標最高 |
+| 進階查詢式 | PMC 查詢 | 填寫後取代自動產生的查詢式 |
+
+建議用法：按「預覽並勾選文獻」列出篩選結果（不花 AI 費用），逐篇「看摘要」後只勾選值得分析的文獻，再按「分析勾選的 N 篇」。
+
+期刊指標是 OpenAlex 的 2 年平均被引用數，仿照 IF 計算，不是 Clarivate 的 IF。Clarivate IF 為付費授權資料，不得放入本公開倉庫。
+
 ## 新增保健功效
 
 新增一項保健功效只需編輯 `data/regulations/health_claims.yaml`，不用改程式。複製調節血糖那一段，修改以下欄位：
@@ -102,7 +116,7 @@ python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8
 
 已驗證（2026-10-07，於開發環境執行）：
 
-- 34 個單元測試全部通過，含「只改設定檔即可新增保健功效」的 5 個測試，含 SQA TC-D01～D08、D10、D13、D14 與四種 AI 轉接的請求格式。
+- 36 個單元測試全部通過，含「只改設定檔即可新增保健功效」的 5 個測試，以及被引用數、期刊指標計分與 OpenAlex 查詢解析，含 SQA TC-D01～D08、D10、D13、D14 與四種 AI 轉接的請求格式。
 - `validate` 與 `build` 對目前的範本資料可正常執行。
 - 文獻檢索以模擬的 PMC 與 AI 回應在 Chromium 實測：查詢、授權不明略過、AI 輸出格式錯誤時自動重試、結果寫入瀏覽器並出現在查詢排名、重複執行時略過已檢索的文獻、停止按鈕與清除結果。
 - 網站計分（rules.js）與 pipeline 計分在示範資料上 5 個組合分數完全一致。
@@ -114,7 +128,8 @@ python -m http.server 8000 --directory _site   # 瀏覽器開 http://localhost:8
 - `fetch` 實際連線 NCBI E-utilities，及 efetch 回傳的 JATS 授權欄位解析。
 - `extract` 實際呼叫 Claude 與 BioC API 取得全文。
 - 三個 GitHub Actions 流程（需在倉庫上執行一次）。
-- 瀏覽器能否直接呼叫 NCBI E-utilities（跨網站請求）：部署後請先按設定頁「測試 PMC 連線」。若被擋下，文獻檢索無法使用，需改用中繼服務或回到本機擷取流程。
+- 瀏覽器呼叫 NCBI E-utilities：2026-10-07 使用者實測「測試 PMC 連線」成功。
+- 瀏覽器呼叫 OpenAlex 與 PMC esummary：以模擬回應測試，尚待部署後按設定頁「測試 OpenAlex 連線」實測。
 - 網站「AI 草擬」、文獻檢索實際呼叫 Claude、OpenAI、地端模型（Gemini 已實測連線）。
 - 正式報告在 Microsoft Word 中的字型（標楷體）顯示；開發環境以 LibreOffice 檢查，該環境沒有標楷體。
 
