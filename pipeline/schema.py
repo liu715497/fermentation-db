@@ -11,6 +11,7 @@ AI_FINDING = {
     "required": ["is_fermented"],
     "properties": {
         "is_fermented": {"type": "boolean"},
+        "exclude_reason": {"type": ["string", "null"]},   # 不符合範圍時的原因，供人工判斷擷取指示是否太嚴
         "organism": {
             "type": "object",
             "required": ["genus", "species"],

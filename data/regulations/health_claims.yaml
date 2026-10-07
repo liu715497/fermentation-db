@@ -8,9 +8,10 @@
     announced: 2026-08-20
     url: https://www.fda.gov.tw/TC/news.aspx?cid=3&pn=2   # 待換成公告本文連結
     requirements: 待填   # 受試人數、試驗期間、評估指標，依公告附件填寫
+  # 2026-10-07 修訂：原式以 ferment*、lactobacill* 為條件，會大量抓到腸道菌發酵與益生菌研究；改為發酵食品用語
   search_query: >-
-    (ferment*[tiab] OR "lactic acid bacteria"[tiab] OR lactobacill*[tiab]
-    OR bifidobacter*[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab])
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
     AND (glucose[tiab] OR glycemic[tiab] OR glycaemic[tiab] OR HbA1c[tiab]
     OR "insulin resistance"[tiab] OR diabet*[tiab])
     AND open access[filter]

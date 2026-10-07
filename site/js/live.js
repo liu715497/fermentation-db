@@ -44,9 +44,11 @@ export async function testPmc() {
   return Number(d.esearchresult?.count || 0);
 }
 
+// 回傳 { total: 全部符合篇數, ids: 本次取回的 PMC 數字編號 }
 export async function searchIds(term, retmax, signal) {
   const r = await ncbi("esearch.fcgi", { db: "pmc", term, retmax, retmode: "json" }, signal);
-  return (await r.json()).esearchresult?.idlist || [];
+  const res = (await r.json()).esearchresult || {};
+  return { total: Number(res.count || 0), ids: res.idlist || [] };
 }
 
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
@@ -139,10 +141,11 @@ export async function runLive(opts) {
   const kw = keyword.trim() ? ` AND (${keyword.trim().split(/[,，\s]+/).filter(Boolean).map((k) => `${k}[tiab]`).join(" AND ")})` : "";
   const term = `(${claim.search_query.replace(/\s+/g, " ")})${kw}`;
   onLog("查詢 PMC 開放取用文獻…");
-  const ids = await searchIds(term, Math.min(count * 5, 500), signal);
+  // 固定取回 500 筆再依 PMC 編號由大到小挑選（編號越大越晚收錄），較接近「最新」
+  const { total, ids } = await searchIds(term, 500, signal);
   const fresh = ids.map(Number).sort((a, b) => b - a).map((n) => `PMC${n}`).filter((p) => !knownIds.has(p)).slice(0, count);
-  onLog(`符合條件 ${ids.length} 篇，本次處理最新的 ${fresh.length} 篇（略過已檢索過的）。`);
-  const stats = { found: ids.length, done: 0, findings: 0, notFermented: 0, unknownLicense: 0, failed: 0 };
+  onLog(`PMC 共 ${total} 篇符合條件，本次處理最新的 ${fresh.length} 篇（略過已檢索過的）。`);
+  const stats = { found: total, done: 0, findings: 0, notFermented: 0, unknownLicense: 0, failed: 0 };
   if (!fresh.length) return stats;
 
   const store = liveData();
@@ -175,6 +178,10 @@ export async function runLive(opts) {
           if (f.is_fermented) { store.findings.push(enrichFinding(f, article, regs)); stats.findings++; }
           else stats.notFermented++;
         });
+        if (!fs.some((f) => f.is_fermented)) {
+          const why = fs.map((f) => f.exclude_reason).find(Boolean);
+          onLog(`  不符合範圍${why ? `：${String(why).slice(0, 40)}` : ""}`);
+        }
         stats.done++;
       } catch (err) {
         if (err.name === "AbortError") throw err;
