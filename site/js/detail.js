@@ -19,6 +19,28 @@ function extractionTag(f) {
       : `<span class="tag auto">自動擷取（${h(e.model)}），未複核</span>`;
 }
 
+// 每個欄位的顯示方式；同一篇的多個試驗組中，內容相同的欄位只顯示一次，不同的列入試驗組對照表
+const FIELDS = [
+  ["證據等級", (f) => `${levelChip(f.level)} ${h(STUDY_TYPE[f.study_type] || f.study_type)}`],
+  ["對象", (f) => `${h(v(f.subjects?.population))}${f.subjects?.n != null ? `，${f.subjects.n} 人／隻` : ""}`],
+  ["劑量", (f) => (f.dose?.amount != null ? h(`${f.dose.amount} ${f.dose.unit || ""} ${f.dose.frequency || ""}`) : "文獻未載明")],
+  ["期間", (f) => h(v(f.duration_days, " 天"))],
+  ["產品型態", (f) => h(FORM[f.product_form] || "文獻未載明")],
+  ["指標", (f) => h((f.outcomes || []).map((o) => OUTCOME[o] || o).join("、") || "文獻未載明")],
+  ["結果", (f) => `<strong>${h(DIRECTION[f.result_direction])}</strong>：${h(f.summary_zh)}`],
+  ["資料來源", (f) => extractionTag(f)],
+];
+
+function findingsHtml(fs) {
+  if (fs.length === 1) return `<dl>${FIELDS.map(([l, r]) => `<dt>${l}</dt><dd>${r(fs[0])}</dd>`).join("")}</dl>`;
+  const same = FIELDS.filter(([, r]) => fs.every((f) => r(f) === r(fs[0])));
+  const diff = FIELDS.filter((x) => !same.includes(x));
+  return `<p class="small muted" style="margin:.5rem 0 0">本篇有 ${fs.length} 個試驗組，計分時算作 1 篇文獻。</p>
+    <dl>${same.map(([l, r]) => `<dt>${l}</dt><dd>${r(fs[0])}</dd>`).join("")}</dl>
+    <div class="table-wrap" style="margin-top:.5rem"><table class="data"><thead><tr><th>試驗組</th>${diff.map(([l]) => `<th>${l}</th>`).join("")}</tr></thead>
+    <tbody>${fs.map((f, i) => `<tr><td class="num">${i + 1}</td>${diff.map(([, r]) => `<td>${r(f)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
 function articleBlock(d, pmcid, fs) {
   const a = d.articles[pmcid] || {};
   const repo = repoUrl();
@@ -27,17 +49,7 @@ function articleBlock(d, pmcid, fs) {
   return `<article class="article">
     <h4>${h(a.title || pmcid)}</h4>
     <div class="small muted">${h(a.first_author || "")}${a.year ? `，${a.year}` : ""}${a.journal ? `，${h(a.journal)}` : ""}　${h(pmcid)}　授權：${h(known ? a.license : "不明")}</div>
-    ${known ? fs.map((f) => `
-      <dl>
-        <dt>證據等級</dt><dd>${levelChip(f.level)} ${h(STUDY_TYPE[f.study_type] || f.study_type)}</dd>
-        <dt>對象</dt><dd>${h(v(f.subjects?.population))}${f.subjects?.n != null ? `，${f.subjects.n} 人／隻` : ""}</dd>
-        <dt>劑量</dt><dd>${f.dose?.amount != null ? h(`${f.dose.amount} ${f.dose.unit || ""} ${f.dose.frequency || ""}`) : "文獻未載明"}</dd>
-        <dt>期間</dt><dd>${h(v(f.duration_days, " 天"))}</dd>
-        <dt>產品型態</dt><dd>${h(FORM[f.product_form] || "文獻未載明")}</dd>
-        <dt>指標</dt><dd>${h((f.outcomes || []).map((o) => OUTCOME[o] || o).join("、") || "文獻未載明")}</dd>
-        <dt>結果</dt><dd><strong>${h(DIRECTION[f.result_direction])}</strong>：${h(f.summary_zh)}</dd>
-        <dt>資料來源</dt><dd>${extractionTag(f)}</dd>
-      </dl>`).join("") : `<p class="small">授權不明，僅提供連結。</p>`}
+    ${known ? findingsHtml(fs) : `<p class="small">授權不明，僅提供連結。</p>`}
     <div class="actions"><a class="btn quiet" href="${h(a.url || `https://pmc.ncbi.nlm.nih.gov/articles/${pmcid}/`)}" target="_blank" rel="noopener">開啟原文</a>
       ${issue ? `<a class="btn quiet" href="${h(issue)}" target="_blank" rel="noopener">回報資料錯誤</a>` : ""}</div>
   </article>`;

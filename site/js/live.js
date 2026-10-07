@@ -99,8 +99,11 @@ const FORMS = ["beverage", "powder", "tablet", "capsule", "other"];
 
 // 與 pipeline/schema.py 相同的必要欄位檢查；不合格時拋出錯誤供重試
 export function checkAi(textOut) {
-  const data = JSON.parse(textOut.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
-  if (!Array.isArray(data.findings)) throw new Error("缺少 findings 陣列");
+  let data = JSON.parse(textOut.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
+  // 與 pipeline/extract.py normalize_ai 相同：模型省略外層時包回 {"findings": [...]}
+  if (Array.isArray(data)) data = { findings: data };
+  else if (data && !("findings" in data) && "is_fermented" in data) data = { findings: [data] };
+  if (!Array.isArray(data?.findings)) throw new Error("缺少 findings 陣列");
   data.findings.forEach((f, i) => {
     const at = `findings[${i}]`;
     if (typeof f.is_fermented !== "boolean") throw new Error(`${at}.is_fermented 必須是 true 或 false`);

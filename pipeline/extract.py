@@ -22,10 +22,19 @@ FAILED_HEADER = "# 擷取失敗清單（extract 自動產生）"
 _ai_validator = Draft202012Validator(AI_RESPONSE)
 
 
+def normalize_ai(data):
+    """部分模型會省略 {"findings": [...]} 外層，直接回傳陣列或單筆物件；統一包回標準格式。"""
+    if isinstance(data, list):
+        return {"findings": data}
+    if isinstance(data, dict) and "findings" not in data and "is_fermented" in data:
+        return {"findings": [data]}
+    return data
+
+
 def parse_ai_json(text: str) -> dict:
     """容許模型在 JSON 外包一層 ``` 標記；其餘多餘文字視為格式錯誤。"""
     cleaned = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", text.strip())
-    data = json.loads(cleaned)
+    data = normalize_ai(json.loads(cleaned))
     errors = sorted(_ai_validator.iter_errors(data), key=lambda e: list(e.absolute_path))
     if errors:
         e = errors[0]

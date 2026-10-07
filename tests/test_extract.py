@@ -72,3 +72,9 @@ def test_tc_d10_unknown_license_not_extracted(repo):
     stats = extract.run("glycemic", p, ENV, None, get_text=lambda _: "text")
     assert stats["skipped_license"] == 1 and p.calls == 0
     assert not (repo / "literature/raw/PMC1.json").exists()
+
+
+def test_missing_wrapper_is_normalised():
+    """模型省略外層時（實測 gemini-3.5-flash-lite 會發生）仍能解析，不算失敗。"""
+    assert extract.parse_ai_json('{"is_fermented": false}') == {"findings": [{"is_fermented": False}]}
+    assert len(extract.parse_ai_json(json.dumps(json.loads(GOOD)["findings"]))["findings"]) == 1
