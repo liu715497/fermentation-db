@@ -1,0 +1,172 @@
+# 保健功效設定。2026-10-07 起開放調節血糖與第一批 5 項（評估方法未查證者標「待填」）。
+# 標示「待填」的欄位必須由維護人員查證食藥署公告原文後填寫，不可由 AI 產生。
+- code: glycemic
+  name_zh: 調節血糖
+  enabled: true
+  focus: 發酵產品對血糖調節          # 擷取主題，帶入擷取指示
+  outcomes:                          # 評估指標代碼（英文小寫）與中文名稱；最後一項固定為 other
+    - {code: fpg, name_zh: 空腹血糖}
+    - {code: hba1c, name_zh: 糖化血色素}
+    - {code: ogtt_auc, name_zh: 葡萄糖耐受曲線下面積}
+    - {code: homa_ir, name_zh: 胰島素阻抗指數}
+    - {code: ppg, name_zh: 餐後血糖}
+    - {code: insulin, name_zh: 胰島素}
+    - {code: other, name_zh: 其他}
+  # 健康食品評估方法是否只採人體試驗：true / false / 待填（未查證時網站顯示「試驗要求待查證」）
+  human_trial_required: true
+  evidence_note: 2026-08-20 修正後的評估方法以人體試驗驗證，動物與細胞試驗只能作為機轉與劑量參考。
+  prompt_notes: null                 # 此項功效專屬的擷取補充說明，選填
+  evaluation_method:
+    name: 健康食品之調節血糖保健功效評估方法
+    announced: 2026-08-20
+    url: https://www.fda.gov.tw/TC/news.aspx?cid=3&pn=2   # 待換成公告本文連結
+    requirements: 待填   # 受試人數、試驗期間、評估指標，依公告附件填寫
+  # 2026-10-07 修訂：原式以 ferment*、lactobacill* 為條件，會大量抓到腸道菌發酵與益生菌研究；改為發酵食品用語
+  search_query: >-
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
+    AND (glucose[tiab] OR glycemic[tiab] OR glycaemic[tiab] OR HbA1c[tiab]
+    OR "insulin resistance"[tiab] OR diabet*[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: 2026-10-07
+
+- code: gut
+  name_zh: 胃腸功能改善
+  enabled: true
+  focus: 發酵產品對胃腸功能改善
+  outcomes:
+    - {code: bifido, name_zh: 糞便雙歧桿菌數}
+    - {code: lab, name_zh: 糞便乳酸菌數}
+    - {code: harmful_bacteria, name_zh: 糞便有害菌數}
+    - {code: stool_freq, name_zh: 排便頻率}
+    - {code: stool_form, name_zh: 糞便性狀}
+    - {code: transit_time, name_zh: 腸道通過時間}
+    - {code: scfa, name_zh: 短鏈脂肪酸}
+    - {code: other, name_zh: 其他}
+  human_trial_required: 待填   # 依食藥署現行評估方法查證後改為 true 或 false
+  evidence_note: null
+  prompt_notes: 指標須來自受試者或試驗動物的糞便、腸道內容物或排便紀錄；單純在試管中模擬發酵屬 in_vitro。
+  evaluation_method:
+    name: 待填           # 評估方法現行名稱（2026 年調節血糖曾更名，其他項目請逐項查證）
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
+    AND (constipation[tiab] OR defecation[tiab] OR "bowel movement"[tiab] OR stool[tiab]
+    OR "intestinal flora"[tiab] OR "gut microbiota"[tiab] OR "intestinal microbiota"[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: immune
+  name_zh: 免疫調節
+  enabled: true
+  focus: 發酵產品對免疫調節
+  outcomes:
+    - {code: nk, name_zh: NK 細胞活性}
+    - {code: cytokine, name_zh: 細胞激素}
+    - {code: antibody, name_zh: 抗體（IgA、IgG 等）}
+    - {code: lymphocyte, name_zh: 淋巴細胞增生或亞群}
+    - {code: phagocytosis, name_zh: 吞噬作用}
+    - {code: infection, name_zh: 感染症狀或發生率}
+    - {code: other, name_zh: 其他}
+  human_trial_required: 待填   # 依食藥署現行評估方法查證後改為 true 或 false
+  evidence_note: null
+  prompt_notes: 過敏相關研究（IgE、過敏症狀）不屬本項，屬輔助調整過敏體質。
+  evaluation_method:
+    name: 待填           # 評估方法現行名稱（2026 年調節血糖曾更名，其他項目請逐項查證）
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
+    AND (immune[tiab] OR immunity[tiab] OR immunomodulat*[tiab] OR "natural killer"[tiab]
+    OR cytokine*[tiab] OR IgA[tiab] OR macrophage*[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: lipid
+  name_zh: 調節血脂
+  enabled: true
+  focus: 發酵產品對血脂調節
+  outcomes:
+    - {code: tc, name_zh: 總膽固醇}
+    - {code: tg, name_zh: 三酸甘油酯}
+    - {code: ldl, name_zh: 低密度脂蛋白膽固醇}
+    - {code: hdl, name_zh: 高密度脂蛋白膽固醇}
+    - {code: other, name_zh: 其他}
+  human_trial_required: 待填   # 依食藥署現行評估方法查證後改為 true 或 false
+  evidence_note: null
+  prompt_notes: 血脂指標須為血清或血漿數值；肝臟脂質堆積屬護肝或體脂肪，不列入本項。
+  evaluation_method:
+    name: 待填           # 評估方法現行名稱（2026 年調節血糖曾更名，其他項目請逐項查證）
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
+    AND (cholesterol[tiab] OR triglyceride*[tiab] OR LDL[tiab] OR dyslipid*[tiab]
+    OR hyperlipid*[tiab] OR "blood lipid"[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: body_fat
+  name_zh: 不易形成體脂肪
+  enabled: true
+  focus: 發酵產品對體脂肪形成
+  outcomes:
+    - {code: body_fat, name_zh: 體脂率或體脂量}
+    - {code: visceral_fat, name_zh: 內臟脂肪}
+    - {code: waist, name_zh: 腰圍}
+    - {code: weight, name_zh: 體重或 BMI}
+    - {code: adipose, name_zh: 脂肪組織重量或脂肪細胞大小}
+    - {code: other, name_zh: 其他}
+  human_trial_required: 待填   # 依食藥署現行評估方法查證後改為 true 或 false
+  evidence_note: null
+  prompt_notes: null
+  evaluation_method:
+    name: 待填           # 評估方法現行名稱（2026 年調節血糖曾更名，其他項目請逐項查證）
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
+    AND ("body fat"[tiab] OR obesity[tiab] OR obese[tiab] OR adipos*[tiab]
+    OR "visceral fat"[tiab] OR "waist circumference"[tiab] OR "body weight"[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: blood_pressure
+  name_zh: 輔助調節血壓
+  enabled: true
+  focus: 發酵產品對血壓調節
+  outcomes:
+    - {code: sbp, name_zh: 收縮壓}
+    - {code: dbp, name_zh: 舒張壓}
+    - {code: ace, name_zh: 血管收縮素轉化酶（ACE）抑制}
+    - {code: other, name_zh: 其他}
+  human_trial_required: 待填   # 依食藥署現行評估方法查證後改為 true 或 false
+  evidence_note: null
+  prompt_notes: 只測 ACE 抑制活性而未量測血壓者，study_type 依實際試驗類型（多為 in_vitro）。
+  evaluation_method:
+    name: 待填           # 評估方法現行名稱（2026 年調節血糖曾更名，其他項目請逐項查證）
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented"[tiab] OR koji[tiab] OR kombucha[tiab] OR natto[tiab] OR kimchi[tiab]
+    OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
+    AND ("blood pressure"[tiab] OR hypertens*[tiab] OR antihypertens*[tiab]
+    OR "angiotensin-converting enzyme"[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
