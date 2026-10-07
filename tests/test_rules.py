@@ -32,16 +32,27 @@ def test_unknown_study_type_rejected():
 
 
 def test_tc_d03_score_example():
-    # 最高 A、n = 3、支持 2 篇、原料 confirm、近 5 年 1 篇 → 73.7，顯示 74
+    # v0.5.0 權重。最高 A、n = 3、支持 2 篇、原料 confirm、近 5 年 1 篇、無引用資料 → 64.0
     fs = [F("P1", "A", year=2025), F("P2", "C", "null", 2015), F("P3", "B", year=2010)]
     r = score_combination(fs, "confirm", 2026, CFG)
-    assert r["score_parts"] == {"evidence": 40.0, "count": 12.0, "consistency": 13.3, "ingredient": 5.0, "recency": 3.3}
-    assert r["score"] == 74
+    assert r["score_parts"] == {"evidence": 35.0, "count": 9.0, "consistency": 13.3, "ingredient": 5.0,
+                                "recency": 1.7, "citation": 0.0, "journal": 0.0}
+    assert r["score"] == 64
 
 
 def test_tc_d04_animal_only_score():
     fs = [F(f"P{i}", "C", year=2010) for i in range(6)]
-    assert score_combination(fs, "available", 2026, CFG)["score"] == 65
+    assert score_combination(fs, "available", 2026, CFG)["score"] == 58   # 13 + 15 + 20 + 10 + 0
+
+
+def test_citation_and_journal_factors():
+    """每年被引用數與期刊指標各以 cap 為滿分取平均；沒有資料的文獻不拉低平均。"""
+    fs = [dict(F("P1", "A", year=2022), cited_by_count=50, journal_2yr=2.5),   # 50 ÷ 5 年 = 10／年 → 滿分
+          dict(F("P2", "A", year=2026), cited_by_count=2, journal_2yr=10),     # 2 ÷ 1 年 = 2／年 → 0.2；期刊 ≥ 5 → 滿分
+          F("P3", "A", year=2020)]                                             # 無 OpenAlex 資料
+    r = score_combination(fs, "available", 2026, CFG)
+    assert r["score_parts"]["citation"] == 6.0      # 10 × (1 + 0.2) ÷ 2
+    assert r["score_parts"]["journal"] == 3.8       # 5 × (0.5 + 1) ÷ 2 = 3.75
 
 
 def test_tc_d05_review_only_combination_excluded():
@@ -79,7 +90,7 @@ def test_tc_d07_weights_read_from_yaml(repo):
     before = load_json(repo / "build/combinations.json")[0]["score"]
 
     cfg = yaml.safe_load((repo / "regulations/scoring.yaml").read_text(encoding="utf-8"))
-    cfg["level_points"]["A"] = 50
+    cfg["level_points"]["A"] += 10
     dump_yaml(repo / "regulations/scoring.yaml", cfg)
     build.run(today=date(2026, 10, 7))
     after = load_json(repo / "build/combinations.json")[0]["score"]
@@ -104,7 +115,7 @@ def test_build_exports_rules_for_live_search(repo):
     """網站即時檢索需要的權重、菌名對照、擷取指示須隨資料檔輸出。"""
     build.run(today=date(2026, 10, 7))
     regs = load_json(repo / "build/regulations.json")
-    assert regs["scoring"]["level_points"]["A"] == 40
+    assert regs["scoring"]["level_points"]["A"] == 35 and regs["scoring"]["citation"]["weight"] == 10
     assert any(a["old"] == "Lactobacillus plantarum" for a in regs["taxonomy_aliases"])
     prompts = load_json(repo / "build/prompts.json")
     assert "findings" in prompts["glycemic"]

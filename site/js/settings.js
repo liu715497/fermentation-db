@@ -2,6 +2,7 @@
 
 import { PROVIDERS, clearKey, getKey, getSettings, saveSettings, testConnection } from "./ai.js";
 import { getNcbi, saveNcbi, testPmc } from "./live.js";
+import { getOpenAlexKey, saveOpenAlexKey, testOpenAlex } from "./openalex.js";
 import { h, toast } from "./util.js";
 
 export function renderSettings(root, d) {
@@ -34,8 +35,24 @@ export function renderSettings(root, d) {
     <div class="actions"><button class="btn" id="n-save">儲存</button><button type="button" class="btn secondary" id="n-test">測試 PMC 連線</button></div>
     <p id="n-status" class="small" role="status"></p>
   </form>
+  <h3>被引用數與期刊指標來源（OpenAlex）</h3>
+  <form class="panel" id="oa-form" style="max-width:40rem">
+    <p class="small">OpenAlex 是免費開放的學術資料庫，不需金鑰即可使用；免費申請的金鑰可提高每日查詢額度。期刊指標是 OpenAlex 仿照 IF 計算的 2 年平均被引用數，不是 Clarivate 的 IF。</p>
+    <div class="field"><label for="oa-key">OpenAlex 金鑰（選填）</label><input type="password" id="oa-key" autocomplete="off"></div>
+    <div class="actions"><button class="btn" id="oa-save">儲存</button><button type="button" class="btn secondary" id="oa-test">測試 OpenAlex 連線</button></div>
+    <p id="oa-status" class="small" role="status"></p>
+  </form>
   <h3>資料版本</h3>
   <p class="small">共用資料庫 ${h(d.meta.data_version)}，共 ${d.meta.n_articles} 篇；本瀏覽器即時檢索 ${d.liveCount} 篇。</p>`;
+
+  const of = root.querySelector("#oa-form");
+  of.querySelector("#oa-key").value = getOpenAlexKey();
+  of.addEventListener("submit", (e) => { e.preventDefault(); saveOpenAlexKey(of.querySelector("#oa-key").value.trim()); toast("已儲存"); });
+  of.querySelector("#oa-test").addEventListener("click", async () => {
+    saveOpenAlexKey(of.querySelector("#oa-key").value.trim()); const st = of.querySelector("#oa-status"); st.textContent = "測試中…";
+    try { const n = await testOpenAlex(); st.textContent = n ? "連線成功，可以取得被引用數與期刊指標。" : "連線成功，但測試文獻查無資料。"; }
+    catch (err) { st.textContent = err.message; }
+  });
 
   const f = root.querySelector("#ai-form");
   const $ = (id) => f.querySelector(id);

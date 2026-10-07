@@ -27,7 +27,8 @@ LIPID = {
 @pytest.fixture
 def two_claims(repo):
     path = repo / "regulations/health_claims.yaml"
-    claims = yaml.safe_load(path.read_text(encoding="utf-8")) + [LIPID]
+    # 只保留調節血糖再加上測試用的功效，讓測試不受正式設定檔內容影響
+    claims = [c for c in yaml.safe_load(path.read_text(encoding="utf-8")) if c["code"] == "glycemic"] + [LIPID]
     dump_yaml(path, claims)
     return repo
 

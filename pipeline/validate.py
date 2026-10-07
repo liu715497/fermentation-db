@@ -104,7 +104,7 @@ def validate_regulations(reg_dir: Path, report: Report, strict: bool = False) ->
     scoring = reg_dir / "scoring.yaml"
     cfg = _parse_yaml(scoring, report) if scoring.exists() else None
     if scoring.exists() and cfg is not None:
-        for key in ("level_points", "count", "consistency", "ingredient_points", "recency"):
+        for key in ("level_points", "count", "consistency", "ingredient_points", "recency", "citation", "journal"):
             if key not in cfg:
                 report.errors.append(f"scoring.yaml：缺少 {key}")
     elif not scoring.exists():

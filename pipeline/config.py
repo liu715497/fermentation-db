@@ -38,7 +38,7 @@ def load_env(path: Path | None = None) -> dict[str, str]:
             values[key.strip()] = val.strip().strip('"').strip("'")
     for key in list(values) + [
         "AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_BASE_URL", "AI_MAX_TOKENS",
-        "AI_TEMPERATURE", "EXTRACTOR", "NCBI_EMAIL", "NCBI_API_KEY",
+        "AI_TEMPERATURE", "EXTRACTOR", "NCBI_EMAIL", "NCBI_API_KEY", "OPENALEX_API_KEY",
     ]:
         if os.environ.get(key):
             values[key] = os.environ[key]

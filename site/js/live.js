@@ -4,6 +4,7 @@
 import { complete } from "./ai.js";
 import { get, remove, set } from "./store.js";
 import { STUDY_TYPE_LEVEL, enrichFinding } from "./rules.js";
+import { lookup, normDoi } from "./openalex.js";
 import { nowStr } from "./util.js";
 
 const EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
@@ -131,21 +132,106 @@ async function extractOne(prompt, article, allowed) {
   }
 }
 
+// 人體試驗用語：「人體試驗優先」排序時，先處理符合這組用語的文獻
+const HUMAN_TERMS = '(randomized[tiab] OR randomised[tiab] OR "clinical trial"[tiab] OR "double-blind"[tiab] OR participants[tiab] OR volunteers[tiab])';
+const quote = (k) => (/\s/.test(k) ? `"${k}"` : k);
+// 關鍵字以逗號分隔；含空白者視為片語（例如 black rice）
+const words = (s) => (s || "").split(/[,，;；]+/).map((x) => x.trim()).filter(Boolean);
+
+/** 依檢索參數組成 PMC 查詢式；p.advanced 有值時直接使用，讓使用者完全自訂 */
+export function buildTerm(claim, p) {
+  if (p.advanced && p.advanced.trim()) return p.advanced.trim();
+  const parts = [`(${claim.search_query.replace(/\s+/g, " ")})`];
+  const all = words(p.mustAll); const any = words(p.anyOf); const not = words(p.exclude);
+  if (all.length) parts.push(`(${all.map((k) => `${quote(k)}[tiab]`).join(" AND ")})`);
+  if (any.length) parts.push(`(${any.map((k) => `${quote(k)}[tiab]`).join(" OR ")})`);
+  let term = parts.join(" AND ");
+  if (p.yearFrom || p.yearTo) term += ` AND (${p.yearFrom || 1900}:${p.yearTo || 3000}[pdat])`;
+  if (not.length) term += ` NOT (${not.map((k) => `${quote(k)}[tiab]`).join(" OR ")})`;
+  return term;
+}
+
+// esummary：在送 AI 前先取得 DOI 與年份，供 OpenAlex 查詢與篩選（每次最多 200 篇）
+async function summaries(ids, signal) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 200) {
+    const r = await ncbi("esummary.fcgi", { db: "pmc", id: ids.slice(i, i + 200).join(","), retmode: "json" }, signal);
+    const res = (await r.json()).result || {};
+    for (const uid of res.uids || []) {
+      const d = res[uid] || {};
+      const aid = Object.fromEntries((d.articleids || []).map((x) => [x.idtype, x.value]));
+      const y = String(d.pubdate || d.epubdate || "").match(/\d{4}/);
+      out[uid] = { doi: aid.doi || null, year: y ? Number(y[0]) : null, title: d.title || "" };
+    }
+  }
+  return out;
+}
+
+const SORTERS = {
+  newest: (a, b) => b.n - a.n,
+  human: (a, b) => (b.human - a.human) || (b.n - a.n),
+  cited: (a, b) => ((b.cited ?? -1) - (a.cited ?? -1)) || (b.n - a.n),
+  journal: (a, b) => ((b.journal ?? -1) - (a.journal ?? -1)) || (b.n - a.n),
+};
+
+/**
+ * 篩選與排序候選文獻（送 AI 之前，不花 AI 費用）。
+ * 回傳 { total, eligible: [{pmcid, n, doi, year, cited, journal, type, human}], notes: [] }
+ */
+export async function screen(claim, p, knownIds, onLog, signal) {
+  const term = buildTerm(claim, p);
+  const { total, ids } = await searchIds(term, 500, signal);
+  const notes = [];
+  if (total > ids.length) notes.push(`符合 ${total} 篇，只從其中 ${ids.length} 篇中挑選`);
+  let human = new Set();
+  if (p.sort === "human") human = new Set((await searchIds(`(${term}) AND ${HUMAN_TERMS}`, 500, signal)).ids);
+  let rows = ids.filter((id) => !knownIds.has(`PMC${id}`)).map((id) => ({ pmcid: `PMC${id}`, n: Number(id), human: human.has(id) ? 1 : 0 }));
+  const done = ids.length - rows.length;
+
+  const needMetrics = p.useOpenAlex || p.sort === "cited" || p.sort === "journal" || p.minCited || p.minJournal || p.type !== "any";
+  if (rows.length && needMetrics) {
+    onLog(`查詢 ${rows.length} 篇的被引用數與期刊指標（OpenAlex）…`);
+    try {
+      const meta = await summaries(rows.map((r) => String(r.n)), signal);
+      const m = await lookup(Object.values(meta).map((x) => x.doi), signal);
+      rows.forEach((r) => {
+        const s = meta[String(r.n)] || {}; const w = m.get(normDoi(s.doi)) || {};
+        Object.assign(r, { doi: s.doi, year: s.year, title: s.title, cited: w.cited_by_count ?? null, journal: w.journal_2yr ?? null,
+                           type: w.work_type || null, journalName: w.journal_name || null });
+      });
+      const miss = rows.filter((r) => r.cited == null).length;
+      if (miss) notes.push(`${miss} 篇在 OpenAlex 查無資料，被引用數與期刊指標不計分，也不受這兩項篩選排除`);
+    } catch (err) {
+      if (err.name === "AbortError") throw err;
+      notes.push(`被引用數與期刊指標取得失敗（${err.message.slice(0, 60)}），本次不使用這兩項`);
+    }
+  }
+  const before = rows.length;
+  if (p.type === "no_review") rows = rows.filter((r) => r.type !== "review");
+  if (p.type === "review") rows = rows.filter((r) => r.type === "review");
+  if (p.minCited) rows = rows.filter((r) => r.cited == null || r.cited >= p.minCited);
+  if (p.minJournal) rows = rows.filter((r) => r.journal == null || r.journal >= p.minJournal);
+  if (before > rows.length) notes.push(`依文章類型、被引用數、期刊指標排除 ${before - rows.length} 篇`);
+  rows.sort(SORTERS[p.sort] || SORTERS.newest);
+  return { term, total, done, eligible: rows, notes };
+}
+
 /**
  * 執行一次即時檢索。
- * opts: { claim, prompt, regs, keyword, count, knownIds:Set, model, provider, onLog(msg), signal }
+ * opts: { claim, prompt, regs, params, count, knownIds:Set, model, provider, onLog(msg), signal }
  * 回傳統計；結果寫入本瀏覽器。
  */
 export async function runLive(opts) {
-  const { claim, prompt, regs, keyword, count, knownIds, onLog, signal } = opts;
-  const kw = keyword.trim() ? ` AND (${keyword.trim().split(/[,，\s]+/).filter(Boolean).map((k) => `${k}[tiab]`).join(" AND ")})` : "";
-  const term = `(${claim.search_query.replace(/\s+/g, " ")})${kw}`;
+  const { claim, prompt, regs, params, count, knownIds, onLog, signal } = opts;
   onLog("查詢 PMC 開放取用文獻…");
-  // 固定取回 500 筆再依 PMC 編號由大到小挑選（編號越大越晚收錄），較接近「最新」
-  const { total, ids } = await searchIds(term, 500, signal);
-  const fresh = ids.map(Number).sort((a, b) => b - a).map((n) => `PMC${n}`).filter((p) => !knownIds.has(p)).slice(0, count);
-  onLog(`PMC 共 ${total} 篇符合條件，本次處理最新的 ${fresh.length} 篇（略過已檢索過的）。`);
-  const stats = { found: total, done: 0, findings: 0, notFermented: 0, unknownLicense: 0, failed: 0 };
+  const sc = await screen(claim, params, knownIds, onLog, signal);
+  sc.notes.forEach((n) => onLog(`  註：${n}`));
+  const picked = sc.eligible.slice(0, count);
+  const byPmc = Object.fromEntries(picked.map((r) => [r.pmcid, r]));
+  const fresh = picked.map((r) => r.pmcid);
+  const remaining = sc.eligible.length - fresh.length;
+  onLog(`PMC 共 ${sc.total} 篇符合；已處理過 ${sc.done} 篇；篩選後尚有 ${sc.eligible.length} 篇，本次處理 ${fresh.length} 篇。`);
+  const stats = { found: sc.total, done: 0, findings: 0, notFermented: 0, unknownLicense: 0, failed: 0, remaining };
   if (!fresh.length) return stats;
 
   const store = liveData();
@@ -160,6 +246,9 @@ export async function runLive(opts) {
       const { fulltext, ...article } = a;
       article.fetched_at = nowStr();
       article.source = "live";
+      const mx = byPmc[a.pmcid] || {};
+      if (mx.cited !== undefined) Object.assign(article, { cited_by_count: mx.cited, journal_2yr: mx.journal, work_type: mx.type,
+                                                         metrics_source: mx.cited == null ? null : "OpenAlex" });
       store.articles[a.pmcid] = article;
       if (a.license === "unknown") {
         stats.unknownLicense++; onLog(`略過 ${a.pmcid}：授權不明，只保留書目。`);

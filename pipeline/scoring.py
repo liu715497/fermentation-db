@@ -27,7 +27,8 @@ def article_view(findings: list[dict]) -> dict[str, dict]:
     for f in findings:
         if f["level"] not in SCORED_LEVELS:
             continue
-        a = by_article.setdefault(f["pmcid"], {"levels": [], "directions": [], "year": f["year"]})
+        a = by_article.setdefault(f["pmcid"], {"levels": [], "directions": [], "year": f["year"],
+                                              "cited_by": f.get("cited_by_count"), "journal": f.get("journal_2yr")})
         a["levels"].append(f["level"])
         a["directions"].append(f["result_direction"])
     for a in by_article.values():
@@ -35,6 +36,12 @@ def article_view(findings: list[dict]) -> dict[str, dict]:
         d = a["directions"]
         a["direction"] = "positive" if "positive" in d else "negative" if "negative" in d else "null"
     return by_article
+
+
+def _mean_capped(values: list[float], cap: float) -> float:
+    """有資料的文獻各自除以 cap（上限 1）後取平均；全部沒有資料時為 0。"""
+    vals = [min(v / cap, 1.0) for v in values if v is not None]
+    return sum(vals) / len(vals) if vals else 0.0
 
 
 def score_combination(findings: list[dict], ingredient_status: str, data_year: int, cfg: dict) -> dict | None:
@@ -54,6 +61,13 @@ def score_combination(findings: list[dict], ingredient_status: str, data_year: i
         "ingredient": float(cfg["ingredient_points"][ingredient_status]),
         "recency": cfg["recency"]["weight"] * recent / n,
     }
+    # 被引用數與期刊指標（v0.5.0）：設定檔沒有這兩項時不計，維持舊版計分
+    if "citation" in cfg:
+        per_year = [a["cited_by"] / max(1, data_year - a["year"] + 1) if a["cited_by"] is not None and a["year"] else None
+                    for a in arts.values()]
+        parts["citation"] = cfg["citation"]["weight"] * _mean_capped(per_year, cfg["citation"]["cap_per_year"])
+    if "journal" in cfg:
+        parts["journal"] = cfg["journal"]["weight"] * _mean_capped([a["journal"] for a in arts.values()], cfg["journal"]["cap"])
     counts = {lv: sum(1 for a in arts.values() if a["level"] == lv) for lv in SCORED_LEVELS}
     return {
         "score": round_half_up(sum(parts.values())),

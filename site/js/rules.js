@@ -8,9 +8,16 @@ export const STUDY_TYPE_LEVEL = {
 const SCORED = ["A", "B", "C", "D"];
 const STATUS_RANK = { available: 0, confirm: 1, unavailable: 2 };
 export const DEFAULT_SCORING = {
-  level_points: { A: 40, B: 30, C: 15, D: 5 }, count: { weight: 20, cap: 5 }, consistency: { weight: 20 },
-  ingredient_points: { available: 10, confirm: 5, unavailable: 0 }, recency: { weight: 10, years: 5 },
+  level_points: { A: 35, B: 26, C: 13, D: 4 }, count: { weight: 15, cap: 5 }, consistency: { weight: 20 },
+  ingredient_points: { available: 10, confirm: 5, unavailable: 0 }, recency: { weight: 5, years: 5 },
+  citation: { weight: 10, cap_per_year: 10 }, journal: { weight: 5, cap: 5 },
 };
+
+// 有資料的文獻各自除以 cap（上限 1）後取平均；全部沒有資料時為 0（與 scoring.py _mean_capped 相同）
+function meanCapped(values, cap) {
+  const v = values.filter((x) => x != null && !Number.isNaN(x)).map((x) => Math.min(x / cap, 1));
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0;
+}
 
 const bestLevel = (levels) => levels.filter((l) => SCORED.includes(l)).sort()[0] || null;
 
@@ -28,7 +35,7 @@ function scoreCombination(findings, ingredient, dataYear, cfg) {
   const arts = {};
   for (const f of findings) {
     if (!SCORED.includes(f.level)) continue;
-    const a = (arts[f.pmcid] ??= { levels: [], dirs: [], year: f.year });
+    const a = (arts[f.pmcid] ??= { levels: [], dirs: [], year: f.year, cited: f.cited_by_count ?? null, journal: f.journal_2yr ?? null });
     a.levels.push(f.level); a.dirs.push(f.result_direction);
   }
   const list = Object.values(arts);
@@ -48,6 +55,11 @@ function scoreCombination(findings, ingredient, dataYear, cfg) {
     ingredient: cfg.ingredient_points[ingredient],
     recency: (cfg.recency.weight * recent) / n,
   };
+  if (cfg.citation) {
+    parts.citation = cfg.citation.weight * meanCapped(
+      list.map((a) => (a.cited != null && a.year ? a.cited / Math.max(1, dataYear - a.year + 1) : null)), cfg.citation.cap_per_year);
+  }
+  if (cfg.journal) parts.journal = cfg.journal.weight * meanCapped(list.map((a) => a.journal), cfg.journal.cap);
   const sum = Object.values(parts).reduce((a, b) => a + b, 0);
   return {
     score: Math.floor(sum + 0.5),
@@ -69,7 +81,8 @@ export function enrichFinding(f, article, regs) {
   const org = f.organism || {};
   const name = canonicalName(org.genus, org.species, regs.taxonomy_aliases);
   return { ...f, pmcid: article.pmcid, organism_name: name, level: STUDY_TYPE_LEVEL[f.study_type],
-           year: article.year, license: article.license, combo_id: comboId(f.health_claim, name, f.substrate) };
+           year: article.year, license: article.license,
+           cited_by_count: article.cited_by_count ?? null, journal_2yr: article.journal_2yr ?? null, combo_id: comboId(f.health_claim, name, f.substrate) };
 }
 
 export function buildCombos(findings, regs, dataYear) {

@@ -1,6 +1,11 @@
-# 綜合分數權重（PIS「證據等級對應與綜合分數計算」）。2026-10-07 確認為初始值，測試後可調整。
-level_points: {A: 40, B: 30, C: 15, D: 5}
-count: {weight: 20, cap: 5}          # A–D 文獻篇數，達 cap 篇給滿分
-consistency: {weight: 20}            # 支持篇數 ÷ A–D 篇數
+# 綜合分數權重（PIS「證據等級對應與綜合分數計算」），滿分 100。
+# 2026-10-07 v0.5.0：依使用者決定納入被引用數與期刊指標（OpenAlex），原權重等比例調降。
+level_points: {A: 35, B: 26, C: 13, D: 4}
+count: {weight: 15, cap: 5}            # A–D 文獻篇數，達 cap 篇給滿分
+consistency: {weight: 20}              # 支持篇數 ÷ A–D 篇數
 ingredient_points: {available: 10, confirm: 5, unavailable: 0}
-recency: {weight: 10, years: 5}      # 近 years 年（含資料版本當年）篇數 ÷ A–D 篇數
+recency: {weight: 5, years: 5}         # 近 years 年（含資料版本當年）篇數 ÷ A–D 篇數
+# 每年被引用數 = OpenAlex 被引用數 ÷ 發表至今年數；每篇以 cap 為滿分，取有資料文獻的平均
+citation: {weight: 10, cap_per_year: 10}
+# 期刊 2 年平均被引用數（OpenAlex，仿 IF 計算，非 Clarivate IF）；每篇以 cap 為滿分，取有資料文獻的平均
+journal: {weight: 5, cap: 5}

@@ -96,11 +96,11 @@ export async function buildFormalReport(rec, inp) {
     ], [1, 3]),
 
     H1("第 3 章 候選組合比較"), caption("表 3-1 前 10 名候選組合與因子分數"),
-    table(["名次", "菌種 × 原料", "等級", "證據", "篇數", "一致性", "原料", "新近度", "總分"],
+    table(["名次", "菌種 × 原料", "等級", "證據", "篇數", "一致性", "原料", "新近度", "引用", "期刊", "總分"],
       rec.top10.map((t) => [t.rank, `${t.organism_name} × ${t.substrate}`, t.top_level, t.score_parts.evidence, t.score_parts.count,
-        t.score_parts.consistency, t.score_parts.ingredient, t.score_parts.recency, t.score]),
-      [5, 24, 6, 7, 7, 8, 7, 8, 6]),
-    P("註：綜合分數依 PIS v0.1 公式計算（權重：證據 40、篇數 20、一致性 20、原料 10、新近度 10）；分數為篩選參考，不代表功效。", { run: { size: 20 } }),
+        t.score_parts.consistency, t.score_parts.ingredient, t.score_parts.recency, t.score_parts.citation ?? "—", t.score_parts.journal ?? "—", t.score]),
+      [5, 22, 5, 6, 6, 7, 6, 7, 6, 6, 6]),
+    P("註：綜合分數依產出當時的 scoring.yaml 權重計算；被引用數與期刊指標取自 OpenAlex，期刊指標為仿 IF 計算的 2 年平均被引用數，非 Clarivate IF。分數為篩選參考，不代表功效。", { run: { size: 20 } }),
     P(`選定組合：${c.organism_name} × ${c.substrate}（${c.score} 分）`),
     P("選定理由："), ...multi(inp.selection_reason),
 

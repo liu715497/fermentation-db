@@ -27,7 +27,8 @@ def main(argv: list[str] | None = None) -> int:
         from pipeline.ncbi import NcbiClient
 
         env = config.load_env()
-        result = fetch.run(args.claim, NcbiClient(env.get("NCBI_EMAIL", ""), env.get("NCBI_API_KEY", "")))
+        result = fetch.run(args.claim, NcbiClient(env.get("NCBI_EMAIL", ""), env.get("NCBI_API_KEY", "")),
+                           openalex_key=env.get("OPENALEX_API_KEY", ""))
         print(f"查詢命中 {result['search_hits']} 篇；新增書目 {result['new_articles']} 篇、"
               f"候選 {result['new_candidates']} 篇；授權不明 {result['unknown_license']} 篇")
     elif args.cmd == "extract":

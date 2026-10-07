@@ -57,6 +57,7 @@ def run(today: date | None = None) -> dict:
             f.update({
                 "pmcid": doc["pmcid"], "organism_name": name, "level": level_for(f["study_type"]),
                 "year": art.get("year"), "license": art.get("license", "unknown"),
+                "cited_by_count": art.get("cited_by_count"), "journal_2yr": art.get("journal_2yr"),
                 "combo_id": f"{f['health_claim']}::{combo_id(name, f.get('substrate'))}",
             })
             findings_out.append(f)

@@ -49,7 +49,8 @@ function articleBlock(d, pmcid, fs) {
   const known = a.license && a.license !== "unknown";
   return `<article class="article">
     <h4>${h(a.title || pmcid)}</h4>
-    <div class="small muted">${h(a.first_author || "")}${a.year ? `，${a.year}` : ""}${a.journal ? `，${h(a.journal)}` : ""}　${h(pmcid)}　授權：${h(known ? a.license : "不明")}</div>
+    <div class="small muted">${h(a.first_author || "")}${a.year ? `，${a.year}` : ""}${a.journal ? `，${h(a.journal)}` : ""}　${h(pmcid)}　授權：${h(known ? a.license : "不明")}
+      ${a.cited_by_count != null ? `　被引用 ${a.cited_by_count} 次` : ""}${a.journal_2yr != null ? `　期刊指標 ${a.journal_2yr}` : ""}${a.metrics_source ? `（${h(a.metrics_source)}）` : ""}</div>
     ${known ? findingsHtml(d, fs) : `<p class="small">授權不明，僅提供連結。</p>`}
     <div class="actions"><a class="btn quiet" href="${h(a.url || `https://pmc.ncbi.nlm.nih.gov/articles/${pmcid}/`)}" target="_blank" rel="noopener">開啟原文</a>
       ${issue ? `<a class="btn quiet" href="${h(issue)}" target="_blank" rel="noopener">回報資料錯誤</a>` : ""}</div>

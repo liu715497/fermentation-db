@@ -26,7 +26,7 @@ export const INGREDIENT = { available: "可用", confirm: "需確認", unavailab
 export const FORM = { beverage: "飲品", powder: "粉末", tablet: "錠狀", capsule: "膠囊", other: "其他" };
 export const PARTS = [
   ["evidence", "證據等級"], ["count", "文獻篇數"], ["consistency", "結果一致"],
-  ["ingredient", "原料可用"], ["recency", "文獻新近"],
+  ["ingredient", "原料可用"], ["recency", "文獻新近"], ["citation", "被引用數"], ["journal", "期刊指標"],
 ];
 export const DISCLAIMER = "本結果為公開文獻整理，部分由系統自動擷取，非功效保證或法規判定。";
 
