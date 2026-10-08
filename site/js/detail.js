@@ -1,10 +1,10 @@
 // 組合詳情（PES S04～S06；FR-M2、FR-M3）與存為評估紀錄（FR-M4-01）
 
-import { announcementsFor, claimInfo, ingredientEntry } from "./data.js";
+import { announcementsFor, claimInfo, ingredientEntry, lawsFor } from "./data.js";
 import { lastResults, state as queryState } from "./search.js";
 import { upsertRecord } from "./store.js";
 import {
-  DIRECTION, DISCLAIMER, FORM, INGREDIENT, LEVEL_DESC, PARTS, STUDY_TYPE,
+  DIRECTION, DISCLAIMER, FORM, INGREDIENT, PARTS, STUDY_TYPE, TARGET, levelDesc,
   anatomy, h, healthFoodHint, levelChip, nowStr, outcomeText, processSummary, repoUrl, toast,
 } from "./util.js";
 
@@ -59,29 +59,38 @@ function articleBlock(d, pmcid, fs) {
 
 export function regulationHtml(d, combo, findings) {
   const claim = claimInfo(d, combo.health_claim) || {};
+  const target = claim.target || "human";
   const em = claim.evaluation_method || {};
   const ann = announcementsFor(d, combo.health_claim)[0];
-  const laws = d.regs.laws || [];
-  const org = ingredientEntry(d, combo.organism_name, "organism");
-  const sub = ingredientEntry(d, combo.substrate, "substrate");
+  const laws = lawsFor(d, target);
+  const org = ingredientEntry(d, combo.organism_name, "organism", target);
+  const sub = ingredientEntry(d, combo.substrate, "substrate", target);
   const ingRow = (label, name, e) => `<tr><td>${label}</td><td>${h(name)}</td><td>${h(INGREDIENT[e?.status || "confirm"])}</td><td>${e?.checked_at ? h(e.checked_at) : "未查核"}</td></tr>`;
   const recheck = (x) => (x.needs_recheck ? `<span class="tag auto">需重新查核</span>` : "");
-  return `
-  ${ann ? `<div class="notice warn small"><strong>法規有更新</strong>：${h(ann.date)} ${h(ann.title)}。<a href="${h(ann.url)}" target="_blank" rel="noopener">公告來源</a></div>` : ""}
-  <div class="paths">
+  const lawList = `<ul class="small">${laws.map((l) => `<li>${h(l.name_zh)}${l.relevant_articles && l.relevant_articles !== "待填" ? `（${h(l.relevant_articles)}）` : "（條號待查證）"} ${recheck(l)}</li>`).join("")}</ul>`;
+  const method = `${em.url && em.url !== "待填" ? `<a href="${h(em.url)}" target="_blank" rel="noopener">${h(em.name)}</a>` : h(em.name && em.name !== "待填" ? em.name : "尚待查證")}${em.announced ? `（${h(em.announced)} 公告）` : ""}`;
+  const paths = target === "animal" ? `
+    <div class="panel"><h3 style="margin-top:0">以飼料或飼料添加物上市</h3>
+      <p>${h(claim.evidence_note || "上市須符合飼料管理法。")}</p>${lawList}</div>
+    <div class="panel"><h3 style="margin-top:0">登記與效能要求</h3>
+      <p>要求：${method}</p>
+      <p>試驗要求：${em.requirements && em.requirements !== "待填" ? h(em.requirements) : "尚待維護人員查證"}</p>
+      <p><strong>${h(combo.top_level === "A" ? "已有目標動物飼養試驗" : "建議補做目標動物飼養試驗")}</strong>。動物飼料主題以目標動物（畜禽、水產）的飼養試驗為最強證據。</p>${recheck(claim)}</div>` : `
     <div class="panel"><h3 style="margin-top:0">以一般食品上市</h3>
-      <p>不得宣稱${h(claim.name_zh || "")}等保健功效或醫療效能，訴求應放在原料、風味或製程特色。</p>
-      <ul class="small">${laws.map((l) => `<li>${h(l.name_zh)}${l.relevant_articles && l.relevant_articles !== "待填" ? `（${h(l.relevant_articles)}）` : ""} ${recheck(l)}</li>`).join("")}</ul></div>
+      <p>不得宣稱${h(claim.name_zh || "")}等保健功效或醫療效能，訴求應放在原料、風味或製程特色。</p>${lawList}</div>
     <div class="panel"><h3 style="margin-top:0">申請健康食品</h3>
-      <p>評估方法：${em.url ? `<a href="${h(em.url)}" target="_blank" rel="noopener">${h(em.name)}</a>` : h(em.name || "未設定")}${em.announced ? `（${h(em.announced)} 公告）` : ""}</p>
+      <p>評估方法：${method}</p>
       <p>試驗要求：${em.requirements && em.requirements !== "待填" ? h(em.requirements) : "尚待維護人員依公告附件填寫"}</p>
       <p><strong>${h(healthFoodHint(combo.top_level, claim.human_trial_required))}</strong>。${h(claim.evidence_note || (claim.human_trial_required === true || claim.human_trial_required === false ? "" : "此功效的評估方法試驗要求尚待維護人員查證。"))}</p>
-      ${recheck(claim)}</div>
-  </div>
+      ${recheck(claim)}</div>`;
+  return `
+  ${ann ? `<div class="notice warn small"><strong>法規有更新</strong>：${h(ann.date)} ${h(ann.title)}。<a href="${h(ann.url)}" target="_blank" rel="noopener">公告來源</a></div>` : ""}
+  <p class="small muted">應用對象：${h(TARGET[target])}</p>
+  <div class="paths">${paths}</div>
   <h3>原料可用性</h3>
   <div class="table-wrap"><table class="data"><thead><tr><th>類別</th><th>名稱</th><th>可用性</th><th>查核日期</th></tr></thead>
   <tbody>${ingRow("菌種", combo.organism_name, org)}${ingRow("原料", combo.substrate, sub)}</tbody></table></div>
-  ${combo.ingredient_status !== "available" ? `<p class="small muted">未列於可供食品使用原料清單者標示「需確認」，請向法規人員確認。</p>` : ""}`;
+  ${combo.ingredient_status !== "available" ? `<p class="small muted">${target === "animal" ? "未列於飼料或飼料添加物公告品項者" : "未列於可供食品使用原料清單者"}標示「需確認」，請向法規人員確認。</p>` : ""}`;
 }
 
 export function renderCombo(root, d, comboId) {
@@ -98,7 +107,7 @@ export function renderCombo(root, d, comboId) {
   <div class="detail-head">
     <div><h2><span class="latin">${h(c.organism_name)}</span> × ${h(c.substrate)}</h2>
       <p class="small muted">${DISCLAIMER}</p>
-      <p>最高證據 ${levelChip(c.top_level)}（${h(LEVEL_DESC[c.top_level])}），共 <span class="num">${c.n_articles}</span> 篇；
+      <p>最高證據 ${levelChip(c.top_level)}（${h(levelDesc(c.top_level, claimInfo(d, c.health_claim)?.target))}），共 <span class="num">${c.n_articles}</span> 篇；
         各等級：${["A", "B", "C", "D"].map((lv) => `${lv} ${c.counts_by_level[lv] || 0}`).join("、")}。製程：${h(processSummary(fs))}。</p>
       <div class="actions"><button class="btn" id="save-rec">存為評估紀錄</button></div></div>
     <div class="panel"><div class="score-num num">${c.score} <small>/ 100</small></div>${anatomy(c.score_parts, true)}
@@ -150,11 +159,11 @@ function snapshot(d, c, fs, title, opinion) {
     top10: top,
     regulations: {
       evaluation_method: claim?.evaluation_method, claim_checked_at: claim?.checked_at,
-      outcomes: claim?.outcomes || [], human_trial_required: claim?.human_trial_required ?? null,
+      outcomes: claim?.outcomes || [], human_trial_required: claim?.human_trial_required ?? null, target: claim?.target || "human",
       evidence_note: claim?.evidence_note || null,
-      laws: d.regs.laws, announcements: announcementsFor(d, c.health_claim),
-      organism: ingredientEntry(d, c.organism_name, "organism") || null,
-      substrate: ingredientEntry(d, c.substrate, "substrate") || null,
+      laws: lawsFor(d, claim?.target), announcements: announcementsFor(d, c.health_claim),
+      organism: ingredientEntry(d, c.organism_name, "organism", claim?.target) || null,
+      substrate: ingredientEntry(d, c.substrate, "substrate", claim?.target) || null,
     },
     report_inputs: {},
   };

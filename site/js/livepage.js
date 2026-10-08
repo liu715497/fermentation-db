@@ -1,7 +1,7 @@
 // 文獻檢索分頁：設定檢索參數、預覽篩選結果（不花 AI 費用）、執行即時檢索、繼續處理剩下的
 
 import { PROVIDERS, getSettings, isConfigured } from "./ai.js";
-import { claimInfo } from "./data.js";
+import { claimInfo, claimOptions } from "./data.js";
 import { buildTerm, clearLive, fetchAbstract, liveData, runLive, screen } from "./live.js";
 import { h } from "./util.js";
 
@@ -31,7 +31,7 @@ export function renderLive(root, d) {
   <div class="notice warn small">每篇約需 10～30 秒並使用你的 AI 額度。結果只存在這台電腦的瀏覽器，標示「即時檢索、未複核」；用於正式評估前請人工核對原文。被引用數與期刊指標來自 OpenAlex，期刊指標是仿照 IF 計算的 2 年平均被引用數，不是 Clarivate 的 IF。</div>
   ${ready ? "" : `<div class="notice bad">尚未設定 AI，請先到<a href="#settings">設定</a>填寫並測試連線。可以先用「預覽篩選結果」看會挑到哪些文獻。</div>`}
   <form class="panel" id="live-form" style="max-width:52rem">
-    <div class="field"><label for="l-claim">保健功效</label><select id="l-claim">${claims.map((c) => `<option value="${h(c.code)}">${h(c.name_zh)}</option>`).join("")}</select></div>
+    <div class="field"><label for="l-claim">評估主題</label><select id="l-claim">${claimOptions(claims, P.claim)}</select></div>
     <fieldset class="field" style="border:0;padding:0"><legend class="label" style="font-weight:600">關鍵字（選填，英文，多個用逗號分隔）</legend>
       <div class="grid3">
         <label>必須全部包含<input type="text" id="l-all" placeholder="例：soybean"></label>

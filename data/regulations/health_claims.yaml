@@ -1,7 +1,9 @@
-# 保健功效設定。2026-10-07 起開放調節血糖與第一批 5 項（評估方法未查證者標「待填」）。
+# 評估主題設定。target：human（人類食品，健康食品保健功效）或 animal（畜禽水產飼料）。
+# 2026-10-07 起開放調節血糖、第一批 5 項保健功效，以及 4 項飼料主題（評估方法未查證者標「待填」）。
 # 標示「待填」的欄位必須由維護人員查證食藥署公告原文後填寫，不可由 AI 產生。
 - code: glycemic
   name_zh: 調節血糖
+  target: human
   enabled: true
   focus: 發酵產品對血糖調節          # 擷取主題，帶入擷取指示
   outcomes:                          # 評估指標代碼（英文小寫）與中文名稱；最後一項固定為 other
@@ -32,6 +34,7 @@
   checked_at: 2026-10-07
 
 - code: gut
+  target: human
   name_zh: 胃腸功能改善
   enabled: true
   focus: 發酵產品對胃腸功能改善
@@ -62,6 +65,7 @@
   checked_at: null
 
 - code: immune
+  target: human
   name_zh: 免疫調節
   enabled: true
   focus: 發酵產品對免疫調節
@@ -91,6 +95,7 @@
   checked_at: null
 
 - code: lipid
+  target: human
   name_zh: 調節血脂
   enabled: true
   focus: 發酵產品對血脂調節
@@ -118,6 +123,7 @@
   checked_at: null
 
 - code: body_fat
+  target: human
   name_zh: 不易形成體脂肪
   enabled: true
   focus: 發酵產品對體脂肪形成
@@ -146,6 +152,7 @@
   checked_at: null
 
 - code: blood_pressure
+  target: human
   name_zh: 輔助調節血壓
   enabled: true
   focus: 發酵產品對血壓調節
@@ -167,6 +174,130 @@
     OR tempeh[tiab] OR kefir[tiab] OR yogurt[tiab] OR yoghurt[tiab] OR "red yeast rice"[tiab])
     AND ("blood pressure"[tiab] OR hypertens*[tiab] OR antihypertens*[tiab]
     OR "angiotensin-converting enzyme"[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: feed_growth
+  name_zh: 飼料：生長性能
+  target: animal
+  enabled: true
+  focus: 發酵飼料對畜禽或水產動物生長性能
+  outcomes:
+    - {code: adg, name_zh: 日增重}
+    - {code: fcr, name_zh: 飼料轉換率}
+    - {code: feed_intake, name_zh: 採食量}
+    - {code: body_weight, name_zh: 體重}
+    - {code: mortality, name_zh: 死亡率}
+    - {code: other, name_zh: 其他}
+  human_trial_required: null   # 飼料不適用健康食品評估方法
+  evidence_note: 飼料不屬健康食品；上市須符合飼料管理法，飼料及飼料添加物以主管機關公告品項為限（待查證適用品項）。
+  prompt_notes: 只看生長與飼料效率指標；腸道、免疫、產品品質指標屬其他飼料主題。
+  evaluation_method:
+    name: 待填           # 飼料或飼料添加物的登記、品項公告或效能評估要求
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented feed"[tiab] OR "fermented soybean meal"[tiab] OR "fermented diet"[tiab]
+    OR "fermented rapeseed"[tiab] OR "fermented corn"[tiab] OR "fermented"[tiab] OR "solid-state fermentation"[tiab])
+    AND (pig*[tiab] OR piglet*[tiab] OR swine[tiab] OR broiler*[tiab] OR chicken*[tiab] OR poultry[tiab]
+    OR "laying hens"[tiab] OR duck*[tiab] OR cattle[tiab] OR cow*[tiab] OR goat*[tiab] OR sheep[tiab]
+    OR fish[tiab] OR shrimp[tiab] OR aquaculture[tiab] OR tilapia[tiab])
+    AND ("growth performance"[tiab] OR "weight gain"[tiab] OR "feed conversion"[tiab] OR "feed efficiency"[tiab] OR "average daily gain"[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: feed_gut
+  name_zh: 飼料：腸道健康
+  target: animal
+  enabled: true
+  focus: 發酵飼料對畜禽或水產動物腸道健康
+  outcomes:
+    - {code: villus, name_zh: 絨毛高度或隱窩深度}
+    - {code: microbiota, name_zh: 腸道菌相}
+    - {code: diarrhea, name_zh: 下痢率}
+    - {code: scfa, name_zh: 短鏈脂肪酸}
+    - {code: digestibility, name_zh: 養分消化率}
+    - {code: other, name_zh: 其他}
+  human_trial_required: null   # 飼料不適用健康食品評估方法
+  evidence_note: 飼料不屬健康食品；上市須符合飼料管理法，飼料及飼料添加物以主管機關公告品項為限（待查證適用品項）。
+  prompt_notes: null
+  evaluation_method:
+    name: 待填           # 飼料或飼料添加物的登記、品項公告或效能評估要求
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented feed"[tiab] OR "fermented soybean meal"[tiab] OR "fermented diet"[tiab]
+    OR "fermented rapeseed"[tiab] OR "fermented corn"[tiab] OR "fermented"[tiab] OR "solid-state fermentation"[tiab])
+    AND (pig*[tiab] OR piglet*[tiab] OR swine[tiab] OR broiler*[tiab] OR chicken*[tiab] OR poultry[tiab]
+    OR "laying hens"[tiab] OR duck*[tiab] OR cattle[tiab] OR cow*[tiab] OR goat*[tiab] OR sheep[tiab]
+    OR fish[tiab] OR shrimp[tiab] OR aquaculture[tiab] OR tilapia[tiab])
+    AND ("intestinal morphology"[tiab] OR "villus height"[tiab] OR "gut microbiota"[tiab] OR "intestinal microbiota"[tiab] OR diarrhea[tiab] OR digestibility[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: feed_immune
+  name_zh: 飼料：免疫與抗病
+  target: animal
+  enabled: true
+  focus: 發酵飼料對畜禽或水產動物免疫與抗病力
+  outcomes:
+    - {code: antibody, name_zh: 抗體}
+    - {code: cytokine, name_zh: 細胞激素}
+    - {code: antioxidant, name_zh: 抗氧化指標}
+    - {code: challenge_survival, name_zh: 攻毒後存活率}
+    - {code: disease_incidence, name_zh: 發病率}
+    - {code: other, name_zh: 其他}
+  human_trial_required: null   # 飼料不適用健康食品評估方法
+  evidence_note: 飼料不屬健康食品；上市須符合飼料管理法，飼料及飼料添加物以主管機關公告品項為限（待查證適用品項）。
+  prompt_notes: null
+  evaluation_method:
+    name: 待填           # 飼料或飼料添加物的登記、品項公告或效能評估要求
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented feed"[tiab] OR "fermented soybean meal"[tiab] OR "fermented diet"[tiab]
+    OR "fermented rapeseed"[tiab] OR "fermented corn"[tiab] OR "fermented"[tiab] OR "solid-state fermentation"[tiab])
+    AND (pig*[tiab] OR piglet*[tiab] OR swine[tiab] OR broiler*[tiab] OR chicken*[tiab] OR poultry[tiab]
+    OR "laying hens"[tiab] OR duck*[tiab] OR cattle[tiab] OR cow*[tiab] OR goat*[tiab] OR sheep[tiab]
+    OR fish[tiab] OR shrimp[tiab] OR aquaculture[tiab] OR tilapia[tiab])
+    AND (immune[tiab] OR immunity[tiab] OR antioxidant[tiab] OR "disease resistance"[tiab] OR challenge[tiab] OR cytokine*[tiab])
+    AND open access[filter]
+  max_candidates: 200
+  checked_at: null
+
+- code: feed_quality
+  name_zh: 飼料：畜產品品質
+  target: animal
+  enabled: true
+  focus: 發酵飼料對肉、蛋、乳等畜產品品質
+  outcomes:
+    - {code: meat_quality, name_zh: 肉質（pH、滴水損失、嫩度等）}
+    - {code: carcass, name_zh: 屠體性狀}
+    - {code: egg_quality, name_zh: 蛋品質}
+    - {code: egg_production, name_zh: 產蛋率}
+    - {code: milk_yield, name_zh: 乳產量或乳成分}
+    - {code: other, name_zh: 其他}
+  human_trial_required: null   # 飼料不適用健康食品評估方法
+  evidence_note: 飼料不屬健康食品；上市須符合飼料管理法，飼料及飼料添加物以主管機關公告品項為限（待查證適用品項）。
+  prompt_notes: null
+  evaluation_method:
+    name: 待填           # 飼料或飼料添加物的登記、品項公告或效能評估要求
+    announced: null
+    url: 待填
+    requirements: 待填
+  search_query: >-
+    ("fermented feed"[tiab] OR "fermented soybean meal"[tiab] OR "fermented diet"[tiab]
+    OR "fermented rapeseed"[tiab] OR "fermented corn"[tiab] OR "fermented"[tiab] OR "solid-state fermentation"[tiab])
+    AND (pig*[tiab] OR piglet*[tiab] OR swine[tiab] OR broiler*[tiab] OR chicken*[tiab] OR poultry[tiab]
+    OR "laying hens"[tiab] OR duck*[tiab] OR cattle[tiab] OR cow*[tiab] OR goat*[tiab] OR sheep[tiab]
+    OR fish[tiab] OR shrimp[tiab] OR aquaculture[tiab] OR tilapia[tiab])
+    AND ("meat quality"[tiab] OR carcass[tiab] OR "egg quality"[tiab] OR "egg production"[tiab] OR "laying performance"[tiab] OR "milk yield"[tiab] OR "milk composition"[tiab])
     AND open access[filter]
   max_candidates: 200
   checked_at: null

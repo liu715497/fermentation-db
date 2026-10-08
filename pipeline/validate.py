@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator
 
 from pipeline import config
 from pipeline.io_utils import load_json
+from pipeline.evidence import TARGETS
 from pipeline.schema import RAW_FILE
 
 PLACEHOLDER = "待填"
@@ -74,7 +75,9 @@ def _check_claim(c: dict, report: Report) -> None:
         seen.add(code)
     if "other" not in seen:
         report.errors.append(f"{name}：outcomes 須包含 other")
-    if c.get("human_trial_required") not in (True, False, PLACEHOLDER):
+    if c.get("target", "human") not in TARGETS:
+        report.errors.append(f"{name}：target 只能是 {'、'.join(TARGETS)}")
+    if c.get("human_trial_required") not in (True, False, PLACEHOLDER, None):
         report.errors.append(f"{name}：human_trial_required 只能是 true、false 或 {PLACEHOLDER}")
     if c.get("enabled") and not str(c.get("focus") or "").strip():
         report.errors.append(f"{name}：啟用的功效必須填 focus（擷取主題）")

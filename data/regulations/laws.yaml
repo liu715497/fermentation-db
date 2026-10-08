@@ -1,11 +1,21 @@
 # 相關法規。條號與連結須由維護人員至全國法規資料庫查證後填寫。
+# applies_to：human（人類食品）、animal（動物飼料）；網站依保健功效的 target 顯示對應法規。
 - code: food_safety_act
   name_zh: 食品安全衛生管理法
+  applies_to: [human]
   relevant_articles: 待填   # 標示與廣告相關條號
   url: 待填
   checked_at: null
 - code: health_food_act
   name_zh: 健康食品管理法
+  applies_to: [human]
   relevant_articles: 待填
+  url: 待填
+  checked_at: null
+- code: feed_act
+  name_zh: 飼料管理法
+  applies_to: [animal]
+  # 104 年修法改為正面表列：飼料及飼料添加物須為中央主管機關公告品項（農業部說明，2026-10-07 查閱）；主管機關已改制為農業部
+  relevant_articles: 待填   # 飼料添加物定義、品項公告、製造輸入登記等條號
   url: 待填
   checked_at: null

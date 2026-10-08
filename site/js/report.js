@@ -11,8 +11,8 @@ const FIELDS = [
   ["risk_regulatory", "主要風險：法規限制（1～2 點）", "area", true],
   ["selection_reason", "選定理由（若非第 1 名請說明）", "area"],
   ["inconsistency_note", "結果不一致的原因判斷", "area", true],
-  ["general_food_approach", "以一般食品上市的可行訴求", "area"],
-  ["hf_support", "現有證據可否支持健康食品申請（可／部分／否，並說明）", "area"],
+  ["general_food_approach", "以一般食品（或飼料）上市的可行訴求", "area"],
+  ["hf_support", "現有證據可否支持健康食品申請或飼料登記（可／部分／否，並說明）", "area"],
   ["extra_trials", "需補做的試驗", "area"],
   ["gaps", "證據缺口與建議試驗（一行一項：缺口；影響；建議試驗；優先順序）", "area", true],
   ["other_risks", "其他風險（例：菌株專利、原料供應）", "area"],
@@ -135,7 +135,7 @@ export function summaryHtml(rec, inp) {
     </tbody></table>
     <strong>前三名組合</strong>
     <table><thead><tr><th>名次</th><th>菌種</th><th>原料</th><th>製程</th><th>最高等級</th><th>篇數</th><th>分數</th><th>法規路徑</th></tr></thead><tbody>
-      ${rec.top10.slice(0, 3).map((t) => `<tr${t.combo_id === rec.combo.combo_id ? ' style="font-weight:700"' : ""}><td>${t.rank}</td><td><i>${h(t.organism_name)}</i></td><td>${h(t.substrate)}</td><td>${h(t.process)}</td><td>${h(t.top_level)}</td><td>${t.n_articles}</td><td>${t.score}</td><td>${h(healthFoodHint(t.top_level, recordRegs(rec).human_trial_required))}</td></tr>`).join("")}
+      ${rec.top10.slice(0, 3).map((t) => `<tr${t.combo_id === rec.combo.combo_id ? ' style="font-weight:700"' : ""}><td>${t.rank}</td><td><i>${h(t.organism_name)}</i></td><td>${h(t.substrate)}</td><td>${h(t.process)}</td><td>${h(t.top_level)}</td><td>${t.n_articles}</td><td>${t.score}</td><td>${h(healthFoodHint(t.top_level, recordRegs(rec).human_trial_required, recordRegs(rec).target))}</td></tr>`).join("")}
     </tbody></table>
     ${rec.top10.slice(0, 3).some((t) => t.combo_id === rec.combo.combo_id) ? "" : `<p style="font-size:.8125rem">選定組合：<i>${h(rec.combo.organism_name)}</i> × ${h(rec.combo.substrate)}（${rec.combo.score} 分）</p>`}
     <strong>評估人建議</strong><p>${fill(inp.conclusion)}</p>

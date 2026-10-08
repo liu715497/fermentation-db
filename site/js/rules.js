@@ -1,10 +1,15 @@
 // 證據等級、菌名正規化與綜合分數：與 pipeline/evidence.py、taxonomy.py、scoring.py 同一套規則。
 // 修改計分規則時，兩邊須一起改（單元測試 TC-D03、D04 的預期值可用來核對）。
 
-export const STUDY_TYPE_LEVEL = {
-  meta_analysis: "A", systematic_review: "A", rct: "A", non_rct_human: "B", observational: "B",
-  animal: "C", in_vitro: "D", review: "E", opinion: "E",
+// 與 pipeline/evidence.py LEVEL_MAPS 相同：等級依應用對象（human 人類食品／animal 動物飼料）而定
+export const LEVEL_MAPS = {
+  human: { meta_analysis: "A", systematic_review: "A", rct: "A", non_rct_human: "B", observational: "B",
+           feeding_trial: "C", animal: "C", in_vitro: "D", review: "E", opinion: "E" },
+  animal: { meta_analysis: "A", systematic_review: "A", feeding_trial: "A", animal: "B",
+            rct: "C", non_rct_human: "C", observational: "C", in_vitro: "D", review: "E", opinion: "E" },
 };
+export const STUDY_TYPE_LEVEL = LEVEL_MAPS.human;   // 允許的 study_type 代碼
+const targetOf = (regs, code) => (regs.health_claims || []).find((c) => c.code === code)?.target || "human";
 const SCORED = ["A", "B", "C", "D"];
 const STATUS_RANK = { available: 0, confirm: 1, unavailable: 2 };
 export const DEFAULT_SCORING = {
@@ -71,8 +76,10 @@ function scoreCombination(findings, ingredient, dataYear, cfg) {
   };
 }
 
-function ingredientStatus(regs, name, type) {
-  const e = (regs.ingredients || []).find((i) => i.type === type && i.name.toLowerCase() === String(name || "").toLowerCase());
+// 清單項目可用 scope 限定 human 或 animal；未填表示兩者皆適用（與 build.py 相同）
+function ingredientStatus(regs, name, type, target) {
+  const e = (regs.ingredients || []).find((i) => i.type === type && i.name.toLowerCase() === String(name || "").toLowerCase()
+                                                && (i.scope == null || i.scope === target));
   return e ? e.status : "confirm";
 }
 
@@ -80,7 +87,7 @@ function ingredientStatus(regs, name, type) {
 export function enrichFinding(f, article, regs) {
   const org = f.organism || {};
   const name = canonicalName(org.genus, org.species, regs.taxonomy_aliases);
-  return { ...f, pmcid: article.pmcid, organism_name: name, level: STUDY_TYPE_LEVEL[f.study_type],
+  return { ...f, pmcid: article.pmcid, organism_name: name, level: LEVEL_MAPS[targetOf(regs, f.health_claim)][f.study_type],
            year: article.year, license: article.license,
            cited_by_count: article.cited_by_count ?? null, journal_2yr: article.journal_2yr ?? null, combo_id: comboId(f.health_claim, name, f.substrate) };
 }
@@ -97,8 +104,9 @@ export function buildCombos(findings, regs, dataYear) {
   const combos = [];
   for (const [id, fs] of Object.entries(groups)) {
     const first = fs[0];
-    const a = ingredientStatus(regs, first.organism_name, "organism");
-    const b = ingredientStatus(regs, first.substrate, "substrate");
+    const t = targetOf(regs, first.health_claim);
+    const a = ingredientStatus(regs, first.organism_name, "organism", t);
+    const b = ingredientStatus(regs, first.substrate, "substrate", t);
     const scored = scoreCombination(fs, rank(a) >= rank(b) ? a : b, dataYear, cfg);
     if (!scored) continue;
     combos.push({ combo_id: id, health_claim: first.health_claim, organism_name: first.organism_name,

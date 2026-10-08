@@ -3,6 +3,7 @@
 # - name: Lactiplantibacillus plantarum
 #   type: organism          # organism / substrate
 #   status: available       # available / confirm / unavailable
+#   scope: human            # 選填：human（可供食品使用原料清單）或 animal（飼料或飼料添加物公告品項）；不填表示兩者皆適用
 #   source: <清單連結>
 #   checked_at: 2026-10-07
 []

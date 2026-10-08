@@ -24,8 +24,12 @@ def _jsonable(obj):
     return obj
 
 
-def _ingredient_status(name: str, kind: str, table: dict) -> str:
-    return table.get((kind, name.lower()), "confirm")  # 未列入清單者一律「需確認」
+def _ingredient_status(name: str, kind: str, table: list, target: str = "human") -> str:
+    """未列入清單者一律「需確認」。清單項目可用 scope 限定 human 或 animal；未填 scope 表示兩者皆適用。"""
+    for i in table:
+        if i["type"] == kind and i["name"].lower() == (name or "").lower() and i.get("scope") in (None, target):
+            return i["status"]
+    return "confirm"
 
 
 def run(today: date | None = None) -> dict:
@@ -33,10 +37,11 @@ def run(today: date | None = None) -> dict:
     reg = config.REG
     claims = load_yaml(reg / "health_claims.yaml", []) or []
     enabled = {c["code"] for c in claims if c.get("enabled")}
+    targets = {c["code"]: c.get("target", "human") for c in claims}
     scoring_cfg = load_yaml(reg / "scoring.yaml", {})
     alias_map = build_alias_map(load_yaml(reg / "taxonomy_aliases.yaml", {}))
     ingredients = load_yaml(reg / "ingredients.yaml", []) or []
-    ing_table = {(i["type"], i["name"].lower()): i["status"] for i in ingredients}
+    ing_table = ingredients
     articles = {a["pmcid"]: a for a in load_yaml(config.LIT / "articles.yaml", []) or []}
     reviewed = {r["finding_id"]: r for r in load_yaml(config.LIT / "reviewed.yaml", []) or []}
 
@@ -55,7 +60,7 @@ def run(today: date | None = None) -> dict:
             org = f.get("organism") or {}
             name = canonical_name(org.get("genus"), org.get("species"), alias_map)
             f.update({
-                "pmcid": doc["pmcid"], "organism_name": name, "level": level_for(f["study_type"]),
+                "pmcid": doc["pmcid"], "organism_name": name, "level": level_for(f["study_type"], targets.get(f["health_claim"], "human")),
                 "year": art.get("year"), "license": art.get("license", "unknown"),
                 "cited_by_count": art.get("cited_by_count"), "journal_2yr": art.get("journal_2yr"),
                 "combo_id": f"{f['health_claim']}::{combo_id(name, f.get('substrate'))}",
@@ -67,8 +72,8 @@ def run(today: date | None = None) -> dict:
     for cid, fs in groups.items():
         first = fs[0]
         status = worst_status(
-            _ingredient_status(first["organism_name"], "organism", ing_table),
-            _ingredient_status(first.get("substrate") or "", "substrate", ing_table),
+            _ingredient_status(first["organism_name"], "organism", ing_table, targets.get(first["health_claim"], "human")),
+            _ingredient_status(first.get("substrate") or "", "substrate", ing_table, targets.get(first["health_claim"], "human")),
         )
         scored = score_combination(fs, status, today.year, scoring_cfg)
         if scored is None:

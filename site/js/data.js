@@ -38,8 +38,16 @@ export async function loadData() {
 
 export const claimInfo = (d, code) => d.regs.health_claims.find((c) => c.code === code);
 export const claimHint = (d, code, top) => healthFoodHintFor(claimInfo(d, code), top);
-const healthFoodHintFor = (claim, top) => healthFoodHint(top, claim?.human_trial_required);
+const healthFoodHintFor = (claim, top) => healthFoodHint(top, claim?.human_trial_required, claim?.target);
+export const lawsFor = (d, target) => (d.regs.laws || []).filter((l) => !l.applies_to || l.applies_to.includes(target || "human"));
+// 下拉選單：依應用對象分組
+export const claimOptions = (claims, selected) => ["human", "animal"].map((t) => {
+  const cs = claims.filter((c) => (c.target || "human") === t);
+  return cs.length ? `<optgroup label="${t === "animal" ? "動物飼料" : "人類食品"}">${cs.map((c) =>
+    `<option value="${c.code}"${c.code === selected ? " selected" : ""}>${c.name_zh}</option>`).join("")}</optgroup>` : "";
+}).join("");
 export const announcementsFor = (d, code) =>
   d.regs.announcements.filter((a) => (a.affects || []).includes(code)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-export const ingredientEntry = (d, name, type) =>
-  d.regs.ingredients.find((i) => i.type === type && i.name.toLowerCase() === String(name || "").toLowerCase());
+export const ingredientEntry = (d, name, type, target = "human") =>
+  d.regs.ingredients.find((i) => i.type === type && i.name.toLowerCase() === String(name || "").toLowerCase()
+                                 && (i.scope == null || i.scope === target));

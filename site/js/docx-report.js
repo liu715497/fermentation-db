@@ -58,7 +58,8 @@ export async function buildFormalReport(rec, inp) {
   const lid = Object.fromEntries(pmcids.map((p, i) => [p, `L${i + 1}`]));
   const reviewTag = (f) => (f.extraction?.status === "reviewed" ? `已複核（${f.extraction.reviewer}）` : "自動擷取，未複核");
   const unreviewed = rec.findings.filter((f) => f.extraction?.status !== "reviewed").length;
-  const hfPath = (lv) => healthFoodHint(lv, recordRegs(rec).human_trial_required);
+  const isFeed = recordRegs(rec).target === "animal";
+  const hfPath = (lv) => healthFoodHint(lv, recordRegs(rec).human_trial_required, recordRegs(rec).target);
   const formName = cond.form === "any" ? "不限" : FORM[cond.form] || cond.form;
   const gaps = blank(inp.gaps) === "【未填寫】" ? [["【未填寫】", "", "", ""]]
     : inp.gaps.split(/\n/).filter((l) => l.trim()).map((l) => { const p = l.split(/[;；]/).map((x) => x.trim()); while (p.length < 4) p.push(""); return p.slice(0, 4); });
@@ -119,12 +120,12 @@ export async function buildFormalReport(rec, inp) {
     P("不一致原因判斷："), ...multi(inp.inconsistency_note),
 
     H1("第 5 章 法規路徑分析"),
-    H2("5.1 以一般食品上市"),
-    P(`宣稱限制：不得宣稱保健或醫療功效。相關法規：${(rec.regulations.laws || []).map((l) => `${l.name_zh}${l.relevant_articles && l.relevant_articles !== "待填" ? `（${l.relevant_articles}）` : "（條號待查證）"}`).join("、")}。`),
+    H2(isFeed ? "5.1 以飼料或飼料添加物上市" : "5.1 以一般食品上市"),
+    P(isFeed ? `${recordRegs(rec).evidence_note || "上市須符合飼料管理法。"}相關法規：${(rec.regulations.laws || []).map((l) => `${l.name_zh}${l.relevant_articles && l.relevant_articles !== "待填" ? `（${l.relevant_articles}）` : "（條號待查證）"}`).join("、")}。` : `宣稱限制：不得宣稱保健或醫療功效。相關法規：${(rec.regulations.laws || []).map((l) => `${l.name_zh}${l.relevant_articles && l.relevant_articles !== "待填" ? `（${l.relevant_articles}）` : "（條號待查證）"}`).join("、")}。`),
     P(`可行做法：${blank(inp.general_food_approach)}`),
-    H2("5.2 申請健康食品"), caption("表 5-1 健康食品路徑要求"),
+    H2(isFeed ? "5.2 登記與效能要求" : "5.2 申請健康食品"), caption(isFeed ? "表 5-1 飼料路徑要求" : "表 5-1 健康食品路徑要求"),
     table(["項目", "內容"], [
-      ["保健功效項目", cond.claim_name], ["對應評估方法", `${em.name || "未設定"}${em.announced ? `（${em.announced} 公告）` : ""}${em.url ? `\n${em.url}` : ""}`],
+      [isFeed ? "評估主題" : "保健功效項目", cond.claim_name], ["對應評估方法", `${em.name || "未設定"}${em.announced ? `（${em.announced} 公告）` : ""}${em.url ? `\n${em.url}` : ""}`],
       ["試驗要求重點", em.requirements && em.requirements !== "待填" ? em.requirements : "待維護人員依公告附件填寫"],
       ["現有證據可否支持", blank(inp.hf_support)], ["需補做試驗", blank(inp.extra_trials)],
     ], [1, 3]),
